@@ -257,7 +257,7 @@ body{background:var(--bg);color:var(--txt);font-size:13px;min-height:100vh}
       <div class="hdr-stat" id="hdr-updated">—</div>
       <div class="hdr-stat" id="hdr-total">—</div>
       <div class="hdr-stat" id="hdr-rcas">—</div>
-      <button class="btn-reload" onclick="resetUpload()">🔄 Atualizar parcial</button>
+      <button class="btn-reload" onclick="goProcessFromSheets()" style="opacity:.65;font-size:11px;padding:5px 10px">🔄 Atualizar</button>
       <button class="btn-reload" onclick="clearAll()" title="Apagar todos os dados salvos">🗑️ Limpar tudo</button>
     </div>
   </div>
@@ -315,7 +315,7 @@ const RCA_COLORS = ['#1D4ED8','#7C3AED','#0D9488','#B45309','#9333EA','#0369A1',
 
 
 // ============ FILE UPLOAD - ROBUST VERSION ============
-const G = {curr:null, prev:null, uf:null, prevUf:null, files:{curr:null, prev:null, uf:null}, updatedAt:null};
+const G = {curr:null, prev:null, uf:null, prevUf:null, gt:null, prevGt:null, files:{curr:null, prev:null, uf:null}, updatedAt:null};
 
 // ============ PERSISTÊNCIA (localStorage + Supabase sync) ============
 const STORE_KEY = 'painel_formula_martins_v1';
@@ -323,8 +323,9 @@ const STORE_KEY = 'painel_formula_martins_v1';
 // ── Configuração Google Sheets ────────────────────────────────────────────
 // Publique cada aba como CSV: Arquivo → Compartilhar → Publicar na web → CSV
 // Cole as URLs resultantes abaixo.
-const GS_CURR_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vScBsLX7FkMyAMQ3M79FcKJONYT95bEEcPqYgEnJsQ7bxCLVJwMS-HdQ2KeBwEcYg/pub?output=csv';    // aba com a parcial atual
-const GS_UF_URL   = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQw6qCAaOMNBOxc0ofi6zo3eBKUxsctMITPdtEI_1qlyJKZp8gxuLNCbEs60AwauQ/pub?output=csv';   // aba com ranking do estado (opcional)
+const GS_CURR_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vScBsLX7FkMyAMQ3M79FcKJONYT95bEEcPqYgEnJsQ7bxCLVJwMS-HdQ2KeBwEcYg/pub?output=csv';    // parcial dos RCAs
+const GS_GT_URL   = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRU0jx8H_cH5Hi80L174GUwqMlyfn9fIHnJQ5-sWesd9X9XOkx5w2X57Rg2s2DUSw/pub?output=csv';   // parcial do GT (visão regional)
+const GS_UF_URL   = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQw6qCAaOMNBOxc0ofi6zo3eBKUxsctMITPdtEI_1qlyJKZp8gxuLNCbEs60AwauQ/pub?output=csv';   // ranking do estado
 const GS_CONFIGURED = !GS_CURR_URL.includes('COLE_URL');
 
 function _parseCSVRaw(text){
@@ -360,39 +361,54 @@ async function _loadGSRaw(url){
   return _parseCSVRaw(csv);
 }
 
-async function goProcessFromSheets(){
+async function goProcessFromSheets(opts={}){
+  const silent=opts&&opts.silent;
   const btn=document.getElementById('gs-btn');
   const stat=document.getElementById('gs-status');
   const errBox=document.getElementById('err-box');
-  btn.disabled=true; btn.textContent='⏳ Carregando…';
-  stat.style.display='block'; stat.textContent='📊 Buscando parcial atual do Google Sheets…';
-  errBox.style.display='none';
+  if(btn){btn.disabled=true; btn.textContent='⏳ Carregando…';}
+  if(stat){stat.style.display='block'; stat.textContent='📊 Atualizando dados…';}
+  if(errBox) errBox.style.display='none';
   try{
-    if(typeof XLSX==='undefined') throw new Error('Biblioteca de leitura não carregou.');
     const stored=loadStore();
+    // Carrega parcial dos RCAs
     const rawCurr=await _loadGSRaw(GS_CURR_URL);
     const newCurr=buildData(rawCurr);
     const newPrev=stored&&stored.curr?stored.curr:null;
+    // Carrega parcial do GT (visão regional independente)
+    let newGt=null,newPrevGt=null;
+    if(!GS_GT_URL.includes('COLE_URL')){
+      if(stat) stat.textContent='📊 Carregando parcial GT…';
+      const rawGt=await _loadGSRaw(GS_GT_URL);
+      newGt=buildData(rawGt);
+      newPrevGt=stored&&stored.gt?stored.gt:null;
+    }
+    // Carrega ranking do estado
     let newUf=null,newPrevUf=null;
     if(!GS_UF_URL.includes('COLE_URL')){
-      stat.textContent='🏅 Buscando ranking do estado…';
+      if(stat) stat.textContent='🏅 Buscando ranking do estado…';
       const rawUf=await _loadGSRaw(GS_UF_URL);
       newUf=buildUFData(rawUf);
       newPrevUf=stored&&stored.uf?stored.uf:null;
     }else if(stored&&stored.uf){
       newUf=stored.uf; newPrevUf=stored.prevUf||null;
     }
-    G.curr=newCurr; G.prev=newPrev; G.uf=newUf; G.prevUf=newPrevUf;
+    G.curr=newCurr; G.prev=newPrev;
+    G.gt=newGt; G.prevGt=newPrevGt;
+    G.uf=newUf; G.prevUf=newPrevUf;
     G.updatedAt=new Date().toISOString();
     saveStore();
     renderDashboard();
     document.getElementById('upload-screen').style.display='none';
     document.getElementById('dashboard').style.display='block';
+    if(stat) stat.style.display='none';
+    if(btn){btn.disabled=false; btn.textContent='🔄 Atualizar';}
   }catch(err){
-    errBox.style.display='block';
-    errBox.textContent='Erro ao carregar do Google Sheets: '+err.message;
-    btn.disabled=false; btn.textContent='🔄 Tentar novamente';
-    stat.style.display='none';
+    if(!silent){
+      if(errBox){errBox.style.display='block'; errBox.textContent='Erro ao carregar: '+err.message;}
+    }
+    if(btn){btn.disabled=false; btn.textContent='🔄 Tentar novamente';}
+    if(stat) stat.style.display='none';
   }
 }
 
@@ -453,6 +469,7 @@ function saveStore(){
     const payload={
       curr:G.curr, prev:G.prev, uf:G.uf,
       prevUf:G.prevUf||null,
+      gt:G.gt||null, prevGt:G.prevGt||null,
       updatedAt:G.updatedAt||new Date().toISOString()
     };
     localStorage.setItem(STORE_KEY,JSON.stringify(payload));
@@ -1209,9 +1226,15 @@ function renderDashboard(){
   const rcas=Object.keys(curr.rcas);
   const ranked=[...rcas].sort((a,b)=>curr.rcas[b].total-curr.rcas[a].total);
 
-  // Header stats
-  const totalPts=ranked.reduce((s,r)=>s+curr.rcas[r].total,0);
-  document.getElementById('hdr-total').textContent=`${totalPts.toFixed(2)} pts regional`;
+  // Header stats — usa GT se disponível, senão soma dos RCAs
+  if(G.gt){
+    const gtRcas=Object.keys(G.gt.rcas);
+    const gtTotal=gtRcas.reduce((s,r)=>s+G.gt.rcas[r].total,0);
+    document.getElementById('hdr-total').textContent=`${gtTotal.toFixed(2)} pts GT`;
+  } else {
+    const totalPts=ranked.reduce((s,r)=>s+curr.rcas[r].total,0);
+    document.getElementById('hdr-total').textContent=`${totalPts.toFixed(2)} pts regional`;
+  }
   document.getElementById('hdr-rcas').textContent=`${rcas.length} RCAs ativos`;
   const upd=document.getElementById('hdr-updated');
   if(upd) upd.textContent = G.updatedAt ? ('🕒 '+fmtUpdatedAt(G.updatedAt)) : '';
@@ -1219,7 +1242,14 @@ function renderDashboard(){
   // Assign colors
   rcas.sort().forEach((r,i)=>{curr.rcas[r].color=RCA_COLORS[i%RCA_COLORS.length];});
 
-  renderRegional(curr,prev,ranked);
+  // Regional usa GT; RCA tabs usam curr
+  if(G.gt){
+    const gtRcas=Object.keys(G.gt.rcas);
+    const gtRanked=[...gtRcas].sort((a,b)=>G.gt.rcas[b].total-G.gt.rcas[a].total);
+    renderRegional(G.gt,G.prevGt||null,gtRanked);
+  } else {
+    renderRegional(curr,prev,ranked);
+  }
   renderRanking(curr,prev,ranked);
   renderRCATab(curr,prev,ranked);
   renderSupplierTab(curr,prev,ranked);
@@ -1257,11 +1287,12 @@ function renderRegional(curr,prev,ranked){
   allGaps.sort((a,b)=>b.pct-a.pct);
   const topGaps=allGaps.slice(0,6);
 
+  const isGT=ranked.length<=1;
   let h=`<div class="kpi-grid">
-    <div class="kpi"><div class="kpi-lbl">Pontos regional</div><div class="kpi-val" style="color:var(--blue)">${totalPts.toFixed(2)}</div><div class="kpi-sub">${ranked.length} RCAs · ${inds.length} fornecedores</div></div>
-    <div class="kpi"><div class="kpi-lbl">P2 ativo (regional)</div><div class="kpi-val" style="color:var(--green)">${p2Count}</div><div class="kpi-sub">indicadores em dobro</div></div>
+    <div class="kpi"><div class="kpi-lbl">${isGT?'Minha Parcial (GT)':'Pontos regional'}</div><div class="kpi-val" style="color:var(--blue)">${totalPts.toFixed(2)}</div><div class="kpi-sub">${isGT?inds.length+' fornecedores':ranked.length+' RCAs · '+inds.length+' fornecedores'}</div></div>
+    <div class="kpi"><div class="kpi-lbl">P2 ativo</div><div class="kpi-val" style="color:var(--green)">${p2Count}</div><div class="kpi-sub">indicadores em dobro</div></div>
     <div class="kpi"><div class="kpi-lbl">Fornecedores pontuando</div><div class="kpi-val" style="color:var(--yellow)">${scoring}</div><div class="kpi-sub">de ${inds.length} no total</div></div>
-    <div class="kpi"><div class="kpi-lbl">🎯 Próximo win</div><div class="kpi-val" style="font-size:14px;color:var(--orange)">${topGaps[0]?topGaps[0].rca:'—'}</div><div class="kpi-sub">${topGaps[0]?topGaps[0].ind+' '+topGaps[0].tipo:''}</div></div>
+    <div class="kpi"><div class="kpi-lbl">🎯 Próximo win</div><div class="kpi-val" style="font-size:14px;color:var(--orange)">${topGaps[0]?topGaps[0].ind:'—'}</div><div class="kpi-sub">${topGaps[0]?topGaps[0].tipo+' P2 · '+topGaps[0].pct.toFixed(0)+'%':''}</div></div>
   </div>`;
 
   // Quick wins
@@ -1273,7 +1304,7 @@ function renderRegional(curr,prev,ranked){
     h+=`<div class="qw">
       <div class="qw-num" style="background:${c}">${i+1}</div>
       <div class="qw-info">
-        <div class="qw-name">${g.rca} · ${g.ind} <span class="badge ${tbadge}">${g.tipo} P2</span></div>
+        <div class="qw-name">${isGT?g.ind:g.rca+' · '+g.ind} <span class="badge ${tbadge}">${g.tipo} P2</span></div>
         <div class="qw-bar"><div class="qw-fill" style="width:${g.pct}%;background:${c}"></div></div>
         <div class="qw-sub">${g.pct.toFixed(0)}% atingido</div>
       </div>
@@ -1966,7 +1997,8 @@ function renderStateRanking(d, prevUf){
 function openSavedDashboard(){
   const s=loadStore();
   if(!s || !s.curr){ return false; }
-  G.curr=s.curr; G.prev=s.prev||null; G.uf=s.uf||null; G.prevUf=s.prevUf||null; G.updatedAt=s.updatedAt||null;
+  G.curr=s.curr; G.prev=s.prev||null; G.uf=s.uf||null; G.prevUf=s.prevUf||null;
+  G.gt=s.gt||null; G.prevGt=s.prevGt||null; G.updatedAt=s.updatedAt||null;
   try{
     renderDashboard();
     document.getElementById('upload-screen').style.display='none';
@@ -1980,21 +2012,34 @@ function openSavedDashboard(){
 
 // ============ INICIALIZAÇÃO ============
 window.addEventListener('DOMContentLoaded', async function(){
-  // Mostra indicador de sync na tela de upload enquanto busca da nuvem
-  const syncBanner=document.getElementById('cloud-sync-banner');
-  if(SUPA_CONFIGURED && syncBanner) syncBanner.style.display='block';
-
-  await syncFromCloud();  // atualiza localStorage com dados mais recentes da nuvem
-
-  if(syncBanner) syncBanner.style.display='none';
-
-  const s=loadStore();
-  if(s && s.curr){
-    if(!openSavedDashboard()) renderStoredStatus();
+  if(GS_CONFIGURED){
+    // Se há dados em cache, mostra imediatamente e atualiza em background
+    const s=loadStore();
+    if(s && s.curr){
+      G.curr=s.curr; G.prev=s.prev||null; G.uf=s.uf||null; G.prevUf=s.prevUf||null;
+      G.gt=s.gt||null; G.prevGt=s.prevGt||null; G.updatedAt=s.updatedAt||null;
+      document.getElementById('upload-screen').style.display='none';
+      document.getElementById('dashboard').style.display='block';
+      renderDashboard();
+      // Atualiza em background sem travar a tela
+      goProcessFromSheets({silent:true});
+    } else {
+      // Sem cache — carrega pela primeira vez
+      goProcessFromSheets({silent:false});
+    }
+  } else {
+    const syncBanner=document.getElementById('cloud-sync-banner');
+    if(SUPA_CONFIGURED && syncBanner) syncBanner.style.display='block';
+    await syncFromCloud();
+    if(syncBanner) syncBanner.style.display='none';
+    const s=loadStore();
+    if(s && s.curr){
+      if(!openSavedDashboard()) renderStoredStatus();
+    }
+    renderStoredStatus();
+    const vb=document.getElementById('view-saved-btn');
+    if(vb) vb.style.display=(s&&s.curr)?'block':'none';
   }
-  renderStoredStatus();
-  const vb=document.getElementById('view-saved-btn');
-  if(vb) vb.style.display=(s&&s.curr)?'block':'none';
 });
 
 </script>
