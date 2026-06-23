@@ -1536,7 +1536,27 @@ function buildWinnersData(raw){
     }
   }
   Object.keys(bySupplier).forEach(ind=>{bySupplier[ind].sort((a,b)=>a.rank-b.rank);});
-  return{bySupplier,myTeam};
+
+  // Calcular ranking nacional por pontos acumulados (soma de todos os fornecedores)
+  const repTotals={};
+  for(let i=hRow+1;i<raw.length;i++){
+    const r=raw[i];
+    const func=String(r[cFunc]||'').trim();
+    const ind=String(r[cInd]||'').trim();
+    const pts=parseN(r[cPts]);
+    if(!func||!ind)continue;
+    const code=func.match(/^(\d+)/)?.[1]||func;
+    if(!repTotals[code])repTotals[code]={func,pts:0};
+    repTotals[code].pts+=pts;
+  }
+  const sortedNat=Object.values(repTotals).sort((a,b)=>b.pts-a.pts);
+  const nationalRanking={};
+  sortedNat.forEach((rep,i)=>{
+    const normName=normalizeRCA(rep.func);
+    if(normName) nationalRanking[normName]={rank:i+1,pts:rep.pts};
+  });
+
+  return{bySupplier,myTeam,nationalRanking};
 }
 
 // ============ TAB GANHADORES POR FORNECEDOR ============
@@ -1618,10 +1638,14 @@ function renderGoals(){
     Critérios: <strong>1°</strong> no estado · <strong>Top 3</strong> regional · <strong>1°</strong> por fornecedor
   </div>`;
 
+  const{nationalRanking}=G.winners;
+
   ranked.forEach(rca=>{
-    const reg=regRank[rca];
     const ufEntry=G.uf?G.uf.myTeam.find(r=>r.name===rca):null;
     const ufRank=ufEntry?ufEntry.rank:999;
+    const natEntry=nationalRanking?nationalRanking[rca]:null;
+    const natRank=natEntry?natEntry.rank:999;
+    const natPts=natEntry?natEntry.pts:0;
     const winData=myTeam[rca];
     let bestSupRank=999,bestSupName='—';
     if(winData){
@@ -1629,8 +1653,8 @@ function renderGoals(){
         if(rank<bestSupRank){bestSupRank=rank;bestSupName=normalizeInd(ind);}
       });
     }
-    const isAnyWin=reg===1||ufRank===1||bestSupRank===1;
-    const isClose=reg<=3||ufRank<=5||bestSupRank<=3;
+    const isAnyWin=ufRank===1||natRank<=3||bestSupRank===1;
+    const isClose=ufRank<=5||natRank<=10||bestSupRank<=3;
     const bc=isAnyWin?'var(--green)':isClose?'var(--orange)':'var(--border)';
     const rcaColor=curr.rcas[rca].color||'var(--blue)';
     h+=`<div class="goal-card" style="border-left:3px solid ${bc}">
@@ -1642,12 +1666,12 @@ function renderGoals(){
         <div class="goal-front">
           <div class="goal-front-lbl">🏅 1° no estado</div>
           ${gBadge(ufRank)}
-          <div style="font-size:10px;color:var(--txt2);margin-top:3px">${ufEntry?ufEntry.pts.toFixed(2)+' pts acum.':'sem dados UF'}</div>
+          <div style="font-size:10px;color:var(--txt2);margin-top:3px">${ufEntry?ufEntry.pts.toFixed(2)+' pts acum.':'sem dados'}</div>
         </div>
         <div class="goal-front">
-          <div class="goal-front-lbl">🏆 Ranking na equipe</div>
-          ${gBadge(reg)}
-          <div style="font-size:10px;color:var(--txt2);margin-top:3px">${curr.rcas[rca].total.toFixed(2)} pts · entre ${ranked.length} RCAs</div>
+          <div class="goal-front-lbl">🏆 Top 3 regional</div>
+          ${gBadge(natRank)}
+          <div style="font-size:10px;color:var(--txt2);margin-top:3px">${natRank<999?natPts.toFixed(3)+' pts acum.':'sem dados'}</div>
         </div>
         <div class="goal-front">
           <div class="goal-front-lbl">🏭 1° por fornecedor</div>
