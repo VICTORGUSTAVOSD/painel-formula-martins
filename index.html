@@ -369,8 +369,8 @@ const STORE_KEY = 'painel_formula_martins_v1';
 // ── Configuração Google Sheets ────────────────────────────────────────────
 // Publique cada aba como CSV: Arquivo → Compartilhar → Publicar na web → CSV
 // Cole as URLs resultantes abaixo.
-const GS_CURR_URL = 'COLE_URL_PARCIAL_ATUAL';    // aba com a parcial atual
-const GS_UF_URL   = 'COLE_URL_RANKING_ESTADO';   // aba com ranking do estado (opcional)
+const GS_CURR_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vScBsLX7FkMyAMQ3M79FcKJONYT95bEEcPqYgEnJsQ7bxCLVJwMS-HdQ2KeBwEcYg/pub?output=csv';    // aba com a parcial atual
+const GS_UF_URL   = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQw6qCAaOMNBOxc0ofi6zo3eBKUxsctMITPdtEI_1qlyJKZp8gxuLNCbEs60AwauQ/pub?output=csv';   // aba com ranking do estado (opcional)
 const GS_CONFIGURED = !GS_CURR_URL.includes('COLE_URL');
 
 async function _loadGSRaw(url){
