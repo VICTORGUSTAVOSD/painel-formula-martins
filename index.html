@@ -1645,9 +1645,9 @@ function renderGoals(){
           <div style="font-size:10px;color:var(--txt2);margin-top:3px">${ufEntry?ufEntry.pts.toFixed(2)+' pts acum.':'sem dados UF'}</div>
         </div>
         <div class="goal-front">
-          <div class="goal-front-lbl">🏆 Top 3 regional</div>
+          <div class="goal-front-lbl">🏆 Ranking na equipe</div>
           ${gBadge(reg)}
-          <div style="font-size:10px;color:var(--txt2);margin-top:3px">${curr.rcas[rca].total.toFixed(2)} pts parcial</div>
+          <div style="font-size:10px;color:var(--txt2);margin-top:3px">${curr.rcas[rca].total.toFixed(2)} pts · entre ${ranked.length} RCAs</div>
         </div>
         <div class="goal-front">
           <div class="goal-front-lbl">🏭 1° por fornecedor</div>
