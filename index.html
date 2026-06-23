@@ -380,7 +380,7 @@ async function goProcessFromSheets(opts={}){
     if(!GS_GT_URL.includes('COLE_URL')){
       if(stat) stat.textContent='📊 Carregando parcial GT…';
       const rawGt=await _loadGSRaw(GS_GT_URL);
-      newGt=buildData(rawGt);
+      newGt=buildData(rawGt, true);
       newPrevGt=stored&&stored.gt?stored.gt:null;
     }
     // Carrega ranking do estado
@@ -701,7 +701,7 @@ function computePoints(ocd,rlz,peso){
   return Math.min(cob,1.2)*Math.max(1,peso||1);
 }
 
-function buildData(raw){
+function buildData(raw, isGT=false){
   // Find header row
   let headerRow=-1;
   let colMap={};
@@ -746,15 +746,17 @@ function buildData(raw){
     rows.push({func:lastFunc,ind:lastInd,indicador,ocd,rlz,cob,peso,pts});
   }
 
-  return buildStructure(rows);
+  return buildStructure(rows, isGT);
 }
 
-function buildStructure(rows){
+function buildStructure(rows, isGT=false){
   const rcaMap={};
   const regMap={};
 
   rows.forEach(r=>{
-    const rcaName=normalizeRCA(r.func);
+    const rcaName=isGT
+      ? (String(r.func||'').trim().replace(/^\d+\s*[-–]\s*/,'').trim()||null)
+      : normalizeRCA(r.func);
     if(!rcaName)return;
     const indLabel=normalizeInd(r.ind);
     const indRaw=String(r.ind).trim().toUpperCase();
