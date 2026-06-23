@@ -220,6 +220,24 @@ body{background:var(--bg);color:var(--txt);font-size:13px;min-height:100vh}
 .go-btn:disabled{background:#475569;cursor:not-allowed;opacity:.7}
 .err-box{background:#FEE2E2;border:1px solid #FECACA;border-radius:8px;padding:11px 13px;color:#DC2626;font-size:12px;margin-top:10px;display:none}
 
+/* ── Winners Tab ─────────────────────────────────────── */
+.win-card{background:var(--card);border:1.5px solid var(--border);border-radius:10px;overflow:hidden;margin-bottom:10px}
+.win-header{display:flex;justify-content:space-between;align-items:center;padding:9px 12px;background:var(--gray-light);flex-wrap:wrap;gap:4px}
+.win-ind{font-weight:700;font-size:13px}
+.win-leader{font-size:11px;color:var(--txt2)}
+.win-reps{padding:6px 10px;display:flex;flex-direction:column;gap:6px}
+.win-rep{background:var(--bg);border-radius:7px;padding:8px 10px;border-left:3px solid var(--border)}
+.win-badge{display:inline-block;padding:2px 7px;border-radius:4px;font-size:11px;font-weight:700}
+.win-b-gold{background:#FEF3C7;color:#92400E}
+.win-b-green{background:#D1FAE5;color:#065F46}
+.win-b-orange{background:#FEF3C7;color:#78350F}
+.win-b-gray{background:#F3F4F6;color:#6B7280}
+/* ── Goals Tab ───────────────────────────────────────── */
+.goal-card{background:var(--card);border:1.5px solid var(--border);border-radius:10px;padding:12px;margin-bottom:10px}
+.goal-fronts{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+.goal-front{background:var(--gray-light);border-radius:8px;padding:8px 9px}
+.goal-front-lbl{font-size:10px;color:var(--txt2);margin-bottom:4px;font-weight:600;text-transform:uppercase;letter-spacing:.03em}
+@media(max-width:480px){.goal-fronts{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -263,10 +281,12 @@ body{background:var(--bg);color:var(--txt);font-size:13px;min-height:100vh}
   </div>
 
   <div class="tabs" id="tabbar">
-    <div class="tab on" data-tab="regional">📊 Regional</div>
+    <div class="tab on" data-tab="regional">🎯 GT Victor</div>
     <div class="tab" data-tab="ranking">🏆 Ranking</div>
     <div class="tab" data-tab="rca">👤 Por RCA</div>
     <div class="tab" data-tab="supplier">🏭 Por Fornecedor</div>
+    <div class="tab" data-tab="winners" id="tab-winners" style="display:none">🥇 Ganhadores</div>
+    <div class="tab" data-tab="goals" id="tab-goals" style="display:none">🎯 Metas RCA</div>
     <div class="tab" data-tab="state" id="tab-state" style="display:none">🏅 Ranking MA</div>
   </div>
 
@@ -275,6 +295,8 @@ body{background:var(--bg);color:var(--txt);font-size:13px;min-height:100vh}
     <div id="pg-ranking" class="hidden"></div>
     <div id="pg-rca" class="hidden"></div>
     <div id="pg-supplier" class="hidden"></div>
+    <div id="pg-winners" class="hidden"></div>
+    <div id="pg-goals" class="hidden"></div>
     <div id="pg-state" class="hidden"></div>
   </div>
 </div>
@@ -315,7 +337,7 @@ const RCA_COLORS = ['#1D4ED8','#7C3AED','#0D9488','#B45309','#9333EA','#0369A1',
 
 
 // ============ FILE UPLOAD - ROBUST VERSION ============
-const G = {curr:null, prev:null, uf:null, prevUf:null, gt:null, prevGt:null, files:{curr:null, prev:null, uf:null}, updatedAt:null};
+const G = {curr:null, prev:null, uf:null, prevUf:null, gt:null, prevGt:null, winners:null, files:{curr:null, prev:null, uf:null}, updatedAt:null};
 
 // ============ PERSISTÊNCIA (localStorage + Supabase sync) ============
 const STORE_KEY = 'painel_formula_martins_v1';
@@ -323,10 +345,13 @@ const STORE_KEY = 'painel_formula_martins_v1';
 // ── Configuração Google Sheets ────────────────────────────────────────────
 // Publique cada aba como CSV: Arquivo → Compartilhar → Publicar na web → CSV
 // Cole as URLs resultantes abaixo.
-const GS_CURR_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vScBsLX7FkMyAMQ3M79FcKJONYT95bEEcPqYgEnJsQ7bxCLVJwMS-HdQ2KeBwEcYg/pub?output=csv';    // parcial dos RCAs
-const GS_GT_URL   = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRU0jx8H_cH5Hi80L174GUwqMlyfn9fIHnJQ5-sWesd9X9XOkx5w2X57Rg2s2DUSw/pub?output=csv';   // parcial do GT (visão regional)
-const GS_UF_URL   = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQw6qCAaOMNBOxc0ofi6zo3eBKUxsctMITPdtEI_1qlyJKZp8gxuLNCbEs60AwauQ/pub?output=csv';   // ranking do estado
-const GS_CONFIGURED = !GS_CURR_URL.includes('COLE_URL');
+const GS_CURR_URL    = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vScBsLX7FkMyAMQ3M79FcKJONYT95bEEcPqYgEnJsQ7bxCLVJwMS-HdQ2KeBwEcYg/pub?output=csv';    // parcial dos RCAs
+const GS_GT_URL      = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRU0jx8H_cH5Hi80L174GUwqMlyfn9fIHnJQ5-sWesd9X9XOkx5w2X57Rg2s2DUSw/pub?output=csv';   // parcial do GT (visão regional)
+const GS_UF_URL      = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQw6qCAaOMNBOxc0ofi6zo3eBKUxsctMITPdtEI_1qlyJKZp8gxuLNCbEs60AwauQ/pub?output=csv';   // ranking do estado
+const GS_WINNERS_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRZ0VrnjQaBNvQvECDrg9qfnYBbM_PGRklmhyqh2e5Mz6nhhJCuCLgCFugv7SNuAg/pub?output=csv';  // ganhadores por fornecedor (representantes)
+const GS_CONFIGURED  = !GS_CURR_URL.includes('COLE_URL');
+const GT_ACUMULADO_PTS  = 47.955; // acumulado anual confirmado — fonte: planilha ganhadores
+const GT_RANK_REGIONAL  = 42;     // posição regional de 179 GTs
 
 function _parseCSVRaw(text){
   const rows=[];
@@ -393,9 +418,19 @@ async function goProcessFromSheets(opts={}){
     }else if(stored&&stored.uf){
       newUf=stored.uf; newPrevUf=stored.prevUf||null;
     }
+    // Carrega ganhadores por fornecedor (representantes)
+    let newWinners=null;
+    if(!GS_WINNERS_URL.includes('COLE_URL')){
+      if(stat) stat.textContent='🥇 Carregando ganhadores por fornecedor…';
+      const rawWinners=await _loadGSRaw(GS_WINNERS_URL);
+      newWinners=buildWinnersData(rawWinners);
+    }else if(stored&&stored.winners){
+      newWinners=stored.winners;
+    }
     G.curr=newCurr; G.prev=newPrev;
     G.gt=newGt; G.prevGt=newPrevGt;
     G.uf=newUf; G.prevUf=newPrevUf;
+    G.winners=newWinners;
     G.updatedAt=new Date().toISOString();
     saveStore();
     renderDashboard();
@@ -470,6 +505,7 @@ function saveStore(){
       curr:G.curr, prev:G.prev, uf:G.uf,
       prevUf:G.prevUf||null,
       gt:G.gt||null, prevGt:G.prevGt||null,
+      winners:G.winners||null,
       updatedAt:G.updatedAt||new Date().toISOString()
     };
     localStorage.setItem(STORE_KEY,JSON.stringify(payload));
@@ -1228,15 +1264,8 @@ function renderDashboard(){
   const rcas=Object.keys(curr.rcas);
   const ranked=[...rcas].sort((a,b)=>curr.rcas[b].total-curr.rcas[a].total);
 
-  // Header stats — usa GT se disponível, senão soma dos RCAs
-  if(G.gt){
-    const gtRcas=Object.keys(G.gt.rcas);
-    const gtTotal=gtRcas.reduce((s,r)=>s+G.gt.rcas[r].total,0);
-    document.getElementById('hdr-total').textContent=`${gtTotal.toFixed(2)} pts GT`;
-  } else {
-    const totalPts=ranked.reduce((s,r)=>s+curr.rcas[r].total,0);
-    document.getElementById('hdr-total').textContent=`${totalPts.toFixed(2)} pts regional`;
-  }
+  // Header stats — acumulado GT fixo + RCAs ativos
+  document.getElementById('hdr-total').textContent=`${Math.round(GT_ACUMULADO_PTS)} pts · ${GT_RANK_REGIONAL}° regional`;
   document.getElementById('hdr-rcas').textContent=`${rcas.length} RCAs ativos`;
   const upd=document.getElementById('hdr-updated');
   if(upd) upd.textContent = G.updatedAt ? ('🕒 '+fmtUpdatedAt(G.updatedAt)) : '';
@@ -1244,17 +1273,19 @@ function renderDashboard(){
   // Assign colors
   rcas.sort().forEach((r,i)=>{curr.rcas[r].color=RCA_COLORS[i%RCA_COLORS.length];});
 
-  // Regional usa GT; RCA tabs usam curr
-  if(G.gt){
-    const gtRcas=Object.keys(G.gt.rcas);
-    const gtRanked=[...gtRcas].sort((a,b)=>G.gt.rcas[b].total-G.gt.rcas[a].total);
-    renderRegional(G.gt,G.prevGt||null,gtRanked);
-  } else {
-    renderRegional(curr,prev,ranked);
-  }
+  // Tab GT Victor usa dados do GT parcial; RCA tabs usam curr
+  renderGTVictor();
   renderRanking(curr,prev,ranked);
   renderRCATab(curr,prev,ranked);
   renderSupplierTab(curr,prev,ranked);
+
+  // Ganhadores e Metas RCA — mostrar tabs quando dados disponíveis
+  if(G.winners){
+    document.getElementById('tab-winners').style.display='block';
+    document.getElementById('tab-goals').style.display='block';
+    renderWinners();
+    renderGoals();
+  }
 
   // Show/hide state tab
   if(G.uf){
@@ -1267,7 +1298,7 @@ function renderDashboard(){
     t.addEventListener('click',()=>{
       document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on'));
       t.classList.add('on');
-      ['regional','ranking','rca','supplier','state'].forEach(p=>{
+      ['regional','ranking','rca','supplier','winners','goals','state'].forEach(p=>{
         const el=document.getElementById('pg-'+p);
         if(el)el.classList.toggle('hidden',p!==t.dataset.tab);
       });
@@ -1384,6 +1415,249 @@ function showRegSupDetail(ind,el){
   const det=document.getElementById('reg-sup-detail');
   det.innerHTML=h;
   det.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+// ============ TAB GT VICTOR ============
+function renderGTVictor(){
+  const area=document.getElementById('pg-regional');
+  let h=`<div style="background:linear-gradient(135deg,#0F172A,#1E3A5F);border-radius:12px;padding:16px;margin-bottom:14px">
+    <div style="font-size:11px;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">GT Victor — Acumulado Anual</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <div style="background:rgba(255,255,255,.12);border-radius:9px;padding:10px 16px;flex:1;min-width:90px">
+        <div style="font-size:11px;color:rgba(255,255,255,.55)">Pontos acumulados</div>
+        <div style="font-size:28px;font-weight:800;color:#38BDF8;line-height:1.1">${Math.round(GT_ACUMULADO_PTS)}</div>
+        <div style="font-size:10px;color:rgba(255,255,255,.4);margin-top:1px">${GT_ACUMULADO_PTS.toFixed(3)} pts</div>
+      </div>
+      <div style="background:rgba(255,255,255,.12);border-radius:9px;padding:10px 16px;flex:1;min-width:90px">
+        <div style="font-size:11px;color:rgba(255,255,255,.55)">Posição regional</div>
+        <div style="font-size:28px;font-weight:800;color:#A78BFA;line-height:1.1">${GT_RANK_REGIONAL}°</div>
+        <div style="font-size:10px;color:rgba(255,255,255,.4);margin-top:1px">de 179 GTs</div>
+      </div>
+      <div style="background:rgba(255,255,255,.07);border-radius:9px;padding:10px 16px;flex:1;min-width:90px;opacity:.6">
+        <div style="font-size:11px;color:rgba(255,255,255,.5)">Posição no estado</div>
+        <div style="font-size:20px;font-weight:700;color:rgba(255,255,255,.3);line-height:1.1">—</div>
+        <div style="font-size:10px;color:rgba(255,255,255,.35);margin-top:1px">base pendente</div>
+      </div>
+    </div>
+  </div>`;
+  if(G.gt){
+    const reg=G.gt.reg;
+    const inds=Object.keys(reg);
+    const totalPts=Object.values(reg).reduce((s,d)=>s+d.c[3]+d.s[3]+d.v[3],0);
+    const scoring=inds.filter(i=>{const d=reg[i];return d.c[3]+d.s[3]+d.v[3]>0;}).length;
+    h+=`<div class="sh">📊 Parcial desta semana — ${totalPts.toFixed(3)} pts · ${scoring} de ${inds.length} fornecedores pontuando</div>`;
+    h+=`<div class="sup-grid" id="gt-sup-grid">`;
+    const supSorted=Object.entries(reg).sort((a,b)=>(b[1].c[3]+b[1].s[3]+b[1].v[3])-(a[1].c[3]+a[1].s[3]+a[1].v[3]));
+    supSorted.forEach(([ind,d])=>{
+      const total=(d.c[3]+d.s[3]+d.v[3]).toFixed(3);
+      const p2=d.p2;
+      const p2pct=p2==='CLI'?d.c[2]:p2==='SKU'?d.s[2]:p2==='VND'?d.v[2]:0;
+      const emo=p2pct>=90?'✅':p2pct>=70?'🎯':p2pct>0?'⚡':'🔴';
+      h+=`<div class="sup-card" onclick="showGTSupDetail('${ind.replace(/'/g,"\\'")}',this)">
+        <div class="sup-name">${normalizeInd(ind)}${p2?` ${p2badge(p2)} ${emo}`:''}</div>
+        ${miniBar(d.c[2],'CLI')}${miniBar(d.s[2],'SKU')}${miniBar(d.v[2],'VND')}
+        <div class="sup-total"><span style="font-size:11px;color:var(--txt2)">Pts</span><span style="color:${Number(total)>0?'var(--green)':'var(--gray)'}">${total}</span></div>
+      </div>`;
+    });
+    h+=`</div><div id="gt-sup-detail"></div>`;
+  } else {
+    h+=`<div class="alert al-y">Parcial semanal do GT ainda não carregada.</div>`;
+  }
+  area.innerHTML=h;
+}
+
+function showGTSupDetail(ind,el){
+  document.querySelectorAll('#gt-sup-grid .sup-card').forEach(c=>c.classList.remove('active'));
+  if(el)el.classList.add('active');
+  if(!G.gt)return;
+  const d=G.gt.reg[ind];if(!d)return;
+  const p2=d.p2;
+  const total=(d.c[3]+d.s[3]+d.v[3]).toFixed(3);
+  let h=`<div class="sh" style="margin-top:14px">Detalhe: ${normalizeInd(ind)}</div><div class="reg-card">
+    <div class="rc-hd"><div class="rc-name">${normalizeInd(ind)}${p2?` ${p2badge(p2)}`:''}<span class="badge b-gray">GT Victor</span></div><div class="rc-pts">${total} pts</div></div>
+    <div class="rc-inds">`;
+  [{k:'c',l:'CLI'},{k:'s',l:'SKU'},{k:'v',l:'VND'}].forEach(({k,l})=>{
+    const isP2=p2===l;const dd=d[k];const pct=dd[2];const ocd=dd[0];const rlz=dd[1];const pts=dd[3];
+    const gap=pct<90&&ocd>0?ocd*0.9-rlz:0;
+    const gstr=l==='VND'?`R$${Math.round(gap).toLocaleString('pt-BR')}`:l==='CLI'?`${gap.toFixed(1)} cli`:`+${gap.toFixed(2)} SKU/ped`;
+    h+=`<div class="rc-i" style="${isP2?'background:var(--purple-bg);':''}">
+      <div class="rc-i-lbl">${l}${isP2?` ${p2badge(p2)}`:''}</div>
+      <div class="rc-i-pct" style="color:${pctCol(pct)}">${fmtPct(pct)}</div>
+      <div class="rc-i-bar"><div class="rc-i-f" style="width:${cap(pct)}%;background:${barBg(pct)}"></div><div class="rc-i-90"></div></div>
+      <div class="rc-i-meta"><span>M:${ocd.toFixed(0)}</span><span>R:${rlz.toFixed(0)}</span></div>
+      ${pts>0?`<div style="font-size:11px;font-weight:700;color:var(--green);margin-top:4px">${pts.toFixed(3)} pts</div>`:''}
+      ${gap>0&&isP2?`<div class="rc-i-gap">Falta ${gstr} p/ P2</div>`:''}
+    </div>`;
+  });
+  h+=`</div></div>`;
+  const det=document.getElementById('gt-sup-detail');
+  det.innerHTML=h;
+  det.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+// ============ WINNERS DATA PARSER ============
+function buildWinnersData(raw){
+  let hRow=-1,cFunc=0,cGestor=1,cInd=2,cPts=4,cRank=5;
+  for(let i=0;i<Math.min(raw.length,6);i++){
+    const r=raw[i].map(c=>String(c).toLowerCase().trim());
+    if(r.some(c=>c.includes('funcionario'))){
+      hRow=i;
+      r.forEach((c,j)=>{
+        if(c.includes('funcionario'))cFunc=j;
+        else if(c.includes('gestor'))cGestor=j;
+        else if(c.includes('industria')||c==='ind')cInd=j;
+        else if(c==='pontos')cPts=j;
+        else if(c.includes('ranking'))cRank=j;
+      });
+      break;
+    }
+  }
+  if(hRow<0)return{bySupplier:{},myTeam:{}};
+  const bySupplier={},myTeam={};
+  let curFunc='',curGestor='';
+  for(let i=hRow+1;i<raw.length;i++){
+    const r=raw[i];
+    const func=String(r[cFunc]||'').trim();
+    const gestor=String(r[cGestor]||'').trim();
+    const ind=String(r[cInd]||'').trim();
+    const pts=parseN(r[cPts]);
+    const rank=parseInt(String(r[cRank]||'').replace(/[^0-9]/g,''))||999;
+    if(func){curFunc=func;curGestor=gestor;}
+    if(!ind||!curFunc)continue;
+    const isMyTeam=curGestor.toUpperCase().includes(MY_GESTOR_KEY);
+    if(!bySupplier[ind])bySupplier[ind]=[];
+    bySupplier[ind].push({func:curFunc,gestor:curGestor,pts,rank,isMyTeam});
+    if(isMyTeam){
+      const normName=normalizeRCA(curFunc);
+      if(normName){
+        if(!myTeam[normName])myTeam[normName]={fullName:curFunc,suppliers:{}};
+        myTeam[normName].suppliers[ind]={pts,rank};
+      }
+    }
+  }
+  Object.keys(bySupplier).forEach(ind=>{bySupplier[ind].sort((a,b)=>a.rank-b.rank);});
+  return{bySupplier,myTeam};
+}
+
+// ============ TAB GANHADORES POR FORNECEDOR ============
+function renderWinners(){
+  const area=document.getElementById('pg-winners');
+  if(!G.winners){area.innerHTML='<div class="alert al-y">Dados não carregados.</div>';return;}
+  const{bySupplier,myTeam}=G.winners;
+  const suppliers=Object.keys(bySupplier).sort();
+  let h=`<div class="sh">🥇 Ganhadores por Fornecedor — equipe em destaque</div>`;
+  h+=`<div style="font-size:11px;color:var(--txt2);margin-bottom:12px;display:flex;gap:12px;flex-wrap:wrap">
+    <span><span style="color:var(--green);font-weight:700">●</span> Ganhando (1°)</span>
+    <span><span style="color:var(--orange);font-weight:700">●</span> Top 3</span>
+    <span><span style="color:#6B7280;font-weight:700">●</span> Fora do pódio</span>
+  </div>`;
+  suppliers.forEach(ind=>{
+    const all=bySupplier[ind];
+    const leader=all[0];if(!leader)return;
+    const leaderShort=leader.func.replace(/^\d+\s*[-–]\s*/,'').trim().split(' ')[0];
+    const leaderGestorShort=(leader.gestor||'').split(' ')[0];
+    const myReps=Object.entries(myTeam)
+      .filter(([,d])=>d.suppliers[ind])
+      .map(([name,d])=>({name,...d.suppliers[ind]}))
+      .sort((a,b)=>a.rank-b.rank);
+    const leaderPts=leader.pts;
+    h+=`<div class="win-card">
+      <div class="win-header">
+        <span class="win-ind">${normalizeInd(ind)}</span>
+        <span class="win-leader">🥇 ${leaderShort} <span style="opacity:.5;font-size:10px">${leaderGestorShort}</span> · ${leaderPts.toFixed(3)} pts</span>
+      </div>`;
+    if(myReps.length>0){
+      h+=`<div class="win-reps">`;
+      myReps.forEach(rep=>{
+        const gap=leaderPts-rep.pts;
+        const isWin=rep.rank===1,isClose=rep.rank<=3;
+        const bc=isWin?'var(--green)':isClose?'var(--orange)':'#374151';
+        const lbl=isWin?'🏆 1° lugar':isClose?`🔥 ${rep.rank}° lugar`:`${rep.rank}° lugar`;
+        const lc=isWin?'var(--green)':isClose?'var(--orange)':'var(--txt2)';
+        h+=`<div class="win-rep" style="border-left:3px solid ${bc}">
+          <div style="display:flex;justify-content:space-between">
+            <span style="font-weight:600">${rep.name}</span>
+            <span style="color:${lc};font-weight:700;font-size:12px">${lbl}</span>
+          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:3px">
+            <span style="font-size:12px;color:var(--blue);font-weight:600">${rep.pts.toFixed(3)} pts</span>
+            <span style="font-size:11px;color:var(--txt2)">${isWin?'✅ já está ganhando':'falta '+gap.toFixed(3)+' pts p/ 1°'}</span>
+          </div>
+        </div>`;
+      });
+      h+=`</div>`;
+    } else {
+      h+=`<div style="padding:8px 10px;font-size:12px;color:var(--txt2);font-style:italic">Sem representante da equipe neste fornecedor</div>`;
+    }
+    h+=`</div>`;
+  });
+  area.innerHTML=h;
+}
+
+// ============ TAB METAS RCA ============
+function renderGoals(){
+  const area=document.getElementById('pg-goals');
+  if(!G.curr||!G.winners){area.innerHTML='<div class="alert al-y">Dados insuficientes.</div>';return;}
+  const{curr}=G;
+  const rcas=Object.keys(curr.rcas);
+  const ranked=[...rcas].sort((a,b)=>curr.rcas[b].total-curr.rcas[a].total);
+  const regRank={};
+  ranked.forEach((rca,i)=>{regRank[rca]=i+1;});
+  const{myTeam}=G.winners;
+
+  function gBadge(rank){
+    if(rank===1)    return`<span class="win-badge win-b-gold">🏆 1° lugar</span>`;
+    if(rank<=3)     return`<span class="win-badge win-b-green">${rank}° — top 3</span>`;
+    if(rank<=10)    return`<span class="win-badge win-b-orange">${rank}° — em jogo</span>`;
+    if(rank>=999)   return`<span class="win-badge win-b-gray">— sem dados</span>`;
+    return`<span class="win-badge win-b-gray">${rank}°</span>`;
+  }
+
+  let h=`<div class="sh">🎯 Metas RCA — 3 formas de ganhar</div>`;
+  h+=`<div style="font-size:11px;color:var(--txt2);margin-bottom:12px">
+    Critérios: <strong>1°</strong> no estado · <strong>Top 3</strong> regional · <strong>1°</strong> por fornecedor
+  </div>`;
+
+  ranked.forEach(rca=>{
+    const reg=regRank[rca];
+    const ufEntry=G.uf?G.uf.myTeam.find(r=>r.name===rca):null;
+    const ufRank=ufEntry?ufEntry.rank:999;
+    const winData=myTeam[rca];
+    let bestSupRank=999,bestSupName='—';
+    if(winData){
+      Object.entries(winData.suppliers).forEach(([ind,{rank}])=>{
+        if(rank<bestSupRank){bestSupRank=rank;bestSupName=normalizeInd(ind);}
+      });
+    }
+    const isAnyWin=reg===1||ufRank===1||bestSupRank===1;
+    const isClose=reg<=3||ufRank<=5||bestSupRank<=3;
+    const bc=isAnyWin?'var(--green)':isClose?'var(--orange)':'var(--border)';
+    const rcaColor=curr.rcas[rca].color||'var(--blue)';
+    h+=`<div class="goal-card" style="border-left:3px solid ${bc}">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <span style="font-weight:700;color:${rcaColor};font-size:15px">${rca}</span>
+        <span style="font-size:11px;color:var(--txt2)">${curr.rcas[rca].total.toFixed(2)} pts parcial</span>
+      </div>
+      <div class="goal-fronts">
+        <div class="goal-front">
+          <div class="goal-front-lbl">🏅 1° no estado</div>
+          ${gBadge(ufRank)}
+          <div style="font-size:10px;color:var(--txt2);margin-top:3px">${ufEntry?ufEntry.pts.toFixed(2)+' pts acum.':'sem dados UF'}</div>
+        </div>
+        <div class="goal-front">
+          <div class="goal-front-lbl">🏆 Top 3 regional</div>
+          ${gBadge(reg)}
+          <div style="font-size:10px;color:var(--txt2);margin-top:3px">${curr.rcas[rca].total.toFixed(2)} pts parcial</div>
+        </div>
+        <div class="goal-front">
+          <div class="goal-front-lbl">🏭 1° por fornecedor</div>
+          ${gBadge(bestSupRank)}
+          <div style="font-size:10px;color:var(--txt2);margin-top:3px">${bestSupRank<999?bestSupName:'sem dados'}</div>
+        </div>
+      </div>
+    </div>`;
+  });
+  area.innerHTML=h;
 }
 
 // ============ RANKING VIEW TOGGLE ============
@@ -2000,7 +2274,7 @@ function openSavedDashboard(){
   const s=loadStore();
   if(!s || !s.curr){ return false; }
   G.curr=s.curr; G.prev=s.prev||null; G.uf=s.uf||null; G.prevUf=s.prevUf||null;
-  G.gt=s.gt||null; G.prevGt=s.prevGt||null; G.updatedAt=s.updatedAt||null;
+  G.gt=s.gt||null; G.prevGt=s.prevGt||null; G.winners=s.winners||null; G.updatedAt=s.updatedAt||null;
   try{
     renderDashboard();
     document.getElementById('upload-screen').style.display='none';
@@ -2019,7 +2293,7 @@ window.addEventListener('DOMContentLoaded', async function(){
     const s=loadStore();
     if(s && s.curr){
       G.curr=s.curr; G.prev=s.prev||null; G.uf=s.uf||null; G.prevUf=s.prevUf||null;
-      G.gt=s.gt||null; G.prevGt=s.prevGt||null; G.updatedAt=s.updatedAt||null;
+      G.gt=s.gt||null; G.prevGt=s.prevGt||null; G.winners=s.winners||null; G.updatedAt=s.updatedAt||null;
       document.getElementById('upload-screen').style.display='none';
       document.getElementById('dashboard').style.display='block';
       renderDashboard();
