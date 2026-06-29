@@ -2340,24 +2340,30 @@ function showRCA(rca,curr,prev,ranked){
 let _fState={ind:null,tipo:'VND',ordem:'desc',status:'all',rca:null};
 let _fView='equipe'; // 'equipe' | 'ranking'
 let _fCurr=null,_fRanked=null;
+function _routeResults(curr,ranked){
+  if(_fView==='ranking')return _buildRankingViewHtml(curr,ranked);
+  if(_fView==='rcaranking')return _buildRCARankingViewHtml(curr,ranked);
+  return _buildSupFilterHtml(curr,ranked);
+}
 function setFState(k,v){
   _fState[k]=v;
   if(_fCurr&&_fRanked){
     document.getElementById('sup-filter-panel').innerHTML=_buildFilterPanelHtml(_fCurr,_fRanked);
-    document.getElementById('sup-filter-results').innerHTML=_fView==='ranking'?_buildRankingViewHtml(_fCurr,_fRanked):_buildSupFilterHtml(_fCurr,_fRanked);
+    document.getElementById('sup-filter-results').innerHTML=_routeResults(_fCurr,_fRanked);
   }
 }
 function setFView(v){
   _fView=v;
   if(_fCurr&&_fRanked){
     document.getElementById('sup-view-toggle').innerHTML=_buildViewToggleHtml();
-    document.getElementById('sup-filter-results').innerHTML=_fView==='ranking'?_buildRankingViewHtml(_fCurr,_fRanked):_buildSupFilterHtml(_fCurr,_fRanked);
+    document.getElementById('sup-filter-results').innerHTML=_routeResults(_fCurr,_fRanked);
   }
 }
 function _buildViewToggleHtml(){
-  const s=(on)=>`class="pill${on?' on':''}" style="padding:5px 14px;font-size:12px;font-weight:600"`;
-  return`<button ${s(_fView==='equipe')} onclick="setFView('equipe')">👥 Análise da equipe</button>
-    <button ${s(_fView==='ranking')} onclick="setFView('ranking')">🏆 Ranking geral</button>`;
+  const s=(v)=>`class="pill${_fView===v?' on':''}" style="padding:5px 14px;font-size:12px;font-weight:600"`;
+  return`<button ${s('equipe')} onclick="setFView('equipe')">👥 Análise da equipe</button>
+    <button ${s('ranking')} onclick="setFView('ranking')">🏆 Ranking GT</button>
+    <button ${s('rcaranking')} onclick="setFView('rcaranking')">🎯 Ranking RCA</button>`;
 }
 function _buildFilterPanelHtml(curr,ranked){
   const inds=Object.keys(curr.reg).sort();
@@ -2559,6 +2565,42 @@ function _buildRankingViewHtml(curr,ranked){
   h+=`</table></div><div style="font-size:11px;color:var(--txt2);margin-top:6px;text-align:right">${cnt} fornecedor${cnt!==1?'es':''}</div>`;
   return h;
 }
+function _buildRCARankingViewHtml(curr,ranked){
+  if(!G.rcaRank||Object.keys(G.rcaRank).length===0){
+    return`<div class="alert al-y" style="margin-top:8px">🎯 Dados de ranking RCA não carregados ainda. Clique em Atualizar.</div>`;
+  }
+  const TH='padding:8px 10px;font-size:11px;font-weight:700;white-space:nowrap';
+  const TD='padding:7px 10px;font-size:12px;border-bottom:1px solid var(--border)';
+  const{rca:rcaFilter}=_fState;
+  // Constrói lista: une G.rcaRank (posição nacional) com curr.rcas (desempenho local)
+  let rows=Object.entries(G.rcaRank)
+    .filter(([name])=>!rcaFilter||name===rcaFilter)
+    .map(([name,d])=>({name,rank:d.rank,pts:d.pts}))
+    .sort((a,b)=>a.rank-b.rank);
+  if(rows.length===0)return`<div class="alert al-y" style="margin-top:8px">Nenhum RCA para os filtros selecionados.</div>`;
+  const leader=rows[0];
+  const rankColor=(r)=>r===1?'var(--green)':r<=3?'var(--orange)':'var(--txt2)';
+  let h=`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
+    <tr style="background:#1E3A5F;color:#fff">
+      <th style="${TH};text-align:center">Rank</th>
+      <th style="${TH};text-align:left">RCA</th>
+      <th style="${TH};text-align:right">Pts acum.</th>
+      <th style="${TH};text-align:right">Gap p/ 1°</th>
+    </tr>`;
+  rows.forEach((r,i)=>{
+    const gap=r.pts-leader.pts;
+    const bg=i%2===0?'transparent':'rgba(0,0,0,0.02)';
+    const gapTxt=r.rank===1?`<span style="font-size:16px">🏆</span>`:`<span style="color:var(--txt2)">${gap.toFixed(2)}</span>`;
+    h+=`<tr style="background:${bg};border-bottom:1px solid var(--border)">
+      <td style="${TD};text-align:center;font-weight:700;color:${rankColor(r.rank)}">${r.rank}°</td>
+      <td style="${TD};font-weight:600">${r.name}</td>
+      <td style="${TD};text-align:right;font-weight:700">${r.pts.toFixed(2)}</td>
+      <td style="${TD};text-align:right">${gapTxt}</td>
+    </tr>`;
+  });
+  h+=`</table></div><div style="font-size:11px;color:var(--txt2);margin-top:6px;text-align:right">${rows.length} RCA${rows.length!==1?'s':''} · ranking nacional</div>`;
+  return h;
+}
 function renderSupplierTab(curr,prev,ranked){
   _fCurr=curr;_fRanked=ranked;
   const h=`<div style="display:flex;gap:6px;margin-bottom:12px" id="sup-view-toggle">${_buildViewToggleHtml()}</div>
@@ -2566,7 +2608,7 @@ function renderSupplierTab(curr,prev,ranked){
     <div style="font-size:12px;font-weight:700;color:var(--txt);margin-bottom:10px">🔍 Filtros</div>
     <div id="sup-filter-panel">${_buildFilterPanelHtml(curr,ranked)}</div>
   </div>
-  <div id="sup-filter-results">${_fView==='ranking'?_buildRankingViewHtml(curr,ranked):_buildSupFilterHtml(curr,ranked)}</div>`;
+  <div id="sup-filter-results">${_routeResults(curr,ranked)}</div>`;
   document.getElementById('pg-supplier').innerHTML=h;
 }
 // ============ UF RANKING PARSE ============
