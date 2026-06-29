@@ -1182,7 +1182,7 @@ function exportStateRanking(){
     'Estado '+uf+' · '+totalReps+' representantes · Lider: '+leaderName+' · '+fmtUpdatedAt(G.updatedAt||new Date().toISOString()),rows,'Ranking_Estado_MA_FormulaMartins');
 }
 
-function exportRCACard(rcaName){
+function shareRCACard(rcaName){
   if(!G.curr||!G.curr.rcas[rcaName])return;
   const r=G.curr.rcas[rcaName];
   const inds=Object.entries(r.inds).sort((a,b)=>{const at=a[1].c[3]+a[1].s[3]+a[1].v[3],bt=b[1].c[3]+b[1].s[3]+b[1].v[3];return bt-at;});
@@ -1248,7 +1248,16 @@ function exportRCACard(rcaName){
   ctx.fillStyle='#1E3A5F';ctx.fillRect(0,fy,W,FTR_H);
   ctx.fillStyle='rgba(255,255,255,.42)';ctx.font='10px "Segoe UI",Arial,sans-serif';
   ctx.fillText('Formula Martins · Painel de Gestao · '+fmtUpdatedAt(G.updatedAt||new Date().toISOString()),PAD,fy+18);
-  _dlCanvas(cv,'Parcial_'+rcaName+'_FormulaMartins');
+  const _fname='Parcial_'+rcaName+'_FormulaMartins';
+  cv.toBlob(async blob=>{
+    const file=new File([blob],_fname+'.png',{type:'image/png'});
+    if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
+      try{await navigator.share({files:[file],title:'Parcial '+rcaName+' — Formula Martins'});}
+      catch(e){if(e.name!=='AbortError')_dlCanvas(cv,_fname);}
+    }else{
+      _dlCanvas(cv,_fname);
+    }
+  },'image/png');
 }
 
 // ============ RCA COMPACT LIST ============
@@ -1572,6 +1581,11 @@ function renderGTVictor(){
     </div>
   </div>`;
   // Ranking acumulado por fornecedor (fonte: ganhadores)
+  if(!G.winners){
+    h+=`<div class="alert al-y" style="margin-bottom:10px">⚠️ Dados de ranking por fornecedor não carregados. Clique em <strong>Atualizar</strong> para recarregar.</div>`;
+  } else if(!G.winners.victorGT||Object.keys(G.winners.victorGT).length===0){
+    h+=`<div class="alert al-y" style="margin-bottom:10px">⚠️ Ranking por fornecedor vazio — código 77682 não encontrado na planilha Ganhadores. Verifique a URL <code>GS_WINNERS_URL</code>.</div>`;
+  }
   if(G.winners&&G.winners.victorGT){
     const vgt=G.winners.victorGT;
     const entries=Object.entries(vgt).sort((a,b)=>a[1].rank-b[1].rank);
@@ -1683,16 +1697,16 @@ function showGTSupDetail(ind,el){
 // ============ WINNERS DATA PARSER ============
 function buildWinnersData(raw){
   let hRow=-1,cFunc=0,cGestor=1,cInd=2,cPts=4,cRank=5;
-  for(let i=0;i<Math.min(raw.length,6);i++){
-    const r=raw[i].map(c=>String(c).toLowerCase().trim());
-    if(r.some(c=>c.includes('funcionario'))){
+  for(let i=0;i<Math.min(raw.length,10);i++){
+    const r=raw[i].map(c=>String(c).toLowerCase().trim().normalize('NFD').replace(/[̀-ͯ]/g,''));
+    if(r.some(c=>c.includes('funcionario')||c.includes('funcionário')||c.includes('func')||c==='codigo'||c==='código')){
       hRow=i;
       r.forEach((c,j)=>{
-        if(c.includes('funcionario'))cFunc=j;
+        if(c.includes('func')||c.includes('funcionario')||c==='codigo'||c==='código')cFunc=j;
         else if(c.includes('gestor'))cGestor=j;
-        else if(c.includes('industria')||c==='ind')cInd=j;
-        else if(c==='pontos')cPts=j;
-        else if(c.includes('ranking'))cRank=j;
+        else if(c.includes('industria')||c==='ind'||c.includes('fornec')||c.includes('industrias'))cInd=j;
+        else if(c==='pontos'||c.includes('pontos')||c==='pts')cPts=j;
+        else if(c.includes('ranking')||c.includes('coloca')||c.includes('rank'))cRank=j;
       });
       break;
     }
@@ -2233,12 +2247,7 @@ function showRCA(rca,curr,prev,ranked){
   }else{h+='<div style="font-size:11px;color:var(--gray);padding:6px 0">Sem gaps de P2</div>';}
   h+=`</div></div>`;
 
-  // View toggle
-  h+=`<div style="display:flex;gap:6px;margin:10px 0 8px">
-    <button class="pill rca-view-btn on" data-view="cards" onclick="switchRCAView('cards')">📊 Detalhes por fornecedor</button>
-    <button class="pill rca-view-btn" data-view="lista" onclick="switchRCAView('lista')">📋 Lista compacta</button>
-  </div>
-  <div id="rca-cards-view">`;
+  h+=`<div id="rca-cards-view" style="display:none">`;
 
   // Industries (cards view)
   h+=`<div class="sh">Resultado por fornecedor</div><div class="ind-list">`;
@@ -2280,10 +2289,9 @@ function showRCA(rca,curr,prev,ranked){
 
   // Lista compacta (hidden by default)
   const listaH=_buildRCAListHtml(rca,r);
-  h+=`<div id="rca-lista-view" style="display:none">
-    <div class="sh">Lista compacta — todos os fornecedores</div>
+  h+=`<div id="rca-lista-view">
     ${listaH}
-    <div style="text-align:center;margin-top:6px"><button class="copy-btn" onclick="exportRCACard('${rca.replace(/'/g,"\\'")}')">💾 Salvar lista como imagem</button></div>
+    <div style="text-align:center;margin-top:6px"><button class="copy-btn" onclick="shareRCACard('${rca.replace(/'/g,"\\'")}')">📲 Compartilhar no WhatsApp</button></div>
   </div>`;
 
   // Message
