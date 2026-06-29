@@ -940,7 +940,7 @@ function generateMsg(rca,curr,prev,rankCurr,rankPrev,totalRCAs){
   lines.push('');
 
   // ── Posição ──
-  const deltaStr=delta!=null?` (${delta>=0?'+':''}${delta.toFixed(2)} pts semana)`:'';
+  const deltaStr=delta!=null&&Math.abs(delta)>0.001?` (${delta>=0?'+':''}${delta.toFixed(2)} pts semana)`:'';
   const stateMovStr=stateMoved!=null&&stateMoved!==0?(stateMoved>0?` ↑${stateMoved}`:` ↓${Math.abs(stateMoved)}`):
                    (rankPrev&&rankPrev===rankCurr&&stateInfo?'':'' );
   const stateStr=stateInfo?` | ${stateInfo.rank}° no MA${stateMovStr}`:'';
@@ -970,7 +970,7 @@ function generateMsg(rca,curr,prev,rankCurr,rankPrev,totalRCAs){
         let actionStr;
         if(l==='VND')actionStr=`vender mais R$${Math.round(gap).toLocaleString('pt-BR')}`;
         else if(l==='CLI')actionStr=`positivar mais ${Math.ceil(gap)} cliente${Math.ceil(gap)!==1?'s':''}`;
-        else actionStr=`ampliar mix de SKUs (média atual baixa)`;
+        else{const cN=Math.round(id.c?id.c[1]:0);const sT=dd[0]*0.9;const nsk=cN>0?Math.ceil(sT*(cN+1)-dd[1]*cN):0;actionStr=cN>0?`${cN} cli, média ${dd[1].toFixed(1)} → próx. com ${nsk} SKUs`:`meta: ${sT.toFixed(1)} SKU/cli`;}
         const isP2=(id.p2===l);
         close.push({ind,l,pct:dd[2],actionStr,isP2});
       }
@@ -1003,16 +1003,50 @@ function generateMsg(rca,curr,prev,rankCurr,rankPrev,totalRCAs){
     lines.push('');
   }
 
-  // ── Ranking MA ──
+  // ── Suas 3 chances de ganhar ──
+  const _crit=[];
   if(stateInfo){
-    const nextAbove=G.uf.ranking.find(x=>x.rank===stateInfo.rank-1);
-    if(stateInfo.rank<=5){
-      lines.push(`🏅 *Ranking MA:* ${stateInfo.rank}° no estado — na briga pelo topo! Continue forte!`);
-    }else if(nextAbove&&(nextAbove.pts-stateInfo.pts)<=5){
-      lines.push(`🏅 *Ranking MA:* ${stateInfo.rank}° no estado — faltam ${(nextAbove.pts-stateInfo.pts).toFixed(2)} pts para superar ${nextAbove.name}!`);
-    }else{
-      lines.push(`🏅 *Ranking MA:* ${stateInfo.rank}° no estado — incentivo é anual, cada semana conta!`);
+    const ufTop=G.uf&&G.uf.ranking&&G.uf.ranking[0];
+    const ufGap=ufTop?Math.max(0,ufTop.pts-stateInfo.pts):0;
+    const ufLbl=stateInfo.rank===1?`Top 1 MA: 🏆 Você é o líder do estado!`:`Top 1 MA: ${stateInfo.rank}° no estado — faltam ${ufGap.toFixed(2)} pts p/ liderar`;
+    _crit.push({score:stateInfo.rank===1?1000:100/stateInfo.rank,lbl:`🏅 ${ufLbl}`});
+  }
+  const _rcaS=G.rcaRank||(G.winners?G.winners.nationalRanking:null);
+  const _natE=_rcaS?_rcaS[rca]:null;
+  if(_natE){
+    const natLbl=_natE.rank<=3?`Top 3 nacional: 🏆 ${_natE.rank}° — você está no pódio!`:`Top 3 nacional: ${_natE.rank}° (${_natE.pts.toFixed(2)} pts acum.) — continue pontuando`;
+    _crit.push({score:_natE.rank<=3?900:Math.max(0,50-_natE.rank/50),lbl:`🌎 ${natLbl}`});
+  }
+  if(G.winners&&G.winners.myTeam&&G.winners.myTeam[rca]){
+    const _supArr=Object.entries(G.winners.myTeam[rca].suppliers||{}).sort((a,b)=>a[1].rank-b[1].rank);
+    if(_supArr.length>0){
+      const[_bInd,{rank:_sR,pts:_sP}]=_supArr[0];
+      const _byS=G.winners.bySupplier[_bInd]||[];
+      const _lPts=_byS.length>0?_byS[0].pts:_sP;
+      const _sGap=Math.max(0,_lPts-_sP);
+      const _wk=curr.inds?curr.inds[_bInd]:null;
+      let _supAct='';
+      if(_wk&&_wk.p2){
+        const _p2=_wk.p2,_d=_p2==='CLI'?_wk.c:_p2==='SKU'?_wk.s:_wk.v;
+        const _ocd=_d[0],_rlz=_d[1],_pct=Math.round(_d[2]);
+        if(_p2==='SKU'&&_wk.c&&_wk.c[1]>0){
+          const _cN=Math.round(_wk.c[1]),_sT=_ocd*0.9,_nsk=Math.ceil(_sT*(_cN+1)-_rlz*_cN);
+          _supAct=` → Foca na ${normalizeInd(_bInd)}! P2 SKU ${_pct}% (${_cN} cli → próx. c/ ${_nsk} SKU)`;
+        }else if(_p2==='CLI'&&_ocd*0.9-_rlz>0){
+          _supAct=` → Foca na ${normalizeInd(_bInd)}! P2 CLI ${_pct}% (positivar mais ${Math.ceil(_ocd*0.9-_rlz)} cli)`;
+        }else if(_p2==='VND'&&_ocd*0.9-_rlz>0){
+          _supAct=` → Foca na ${normalizeInd(_bInd)}! P2 VND ${_pct}% (faltam R$${Math.round(_ocd*0.9-_rlz).toLocaleString('pt-BR')})`;
+        }
+      }
+      const _supLbl=_sR===1?`Por fornecedor: 🏆 JÁ GANHANDO na ${normalizeInd(_bInd)}!`:`Por fornecedor: ${_sR}° na ${normalizeInd(_bInd)} — faltam *${_sGap.toFixed(3)} pts* p/ o 1°${_supAct}`;
+      _crit.push({score:_sR===1?950:Math.max(0,80-_sR*5),lbl:`🏭 ${_supLbl}`});
     }
+  }
+  if(_crit.length>0){
+    _crit.sort((a,b)=>b.score-a.score);
+    lines.push('🏆 *Suas 3 chances de ganhar:*');
+    _crit.forEach(c=>lines.push(`• ${c.lbl}`));
+    lines.push('');
   }
 
   return lines.join('\n');
@@ -1581,6 +1615,39 @@ function renderGTVictor(){
   } else {
     h+=`<div class="alert al-y">Parcial semanal do GT ainda não carregada.</div>`;
   }
+
+  // ── Colocação acumulada por fornecedor (abaixo dos cards semanais) ──
+  if(G.winners&&G.winners.victorGT&&Object.keys(G.winners.victorGT).length>0){
+    const vgt=G.winners.victorGT;
+    const entries=Object.entries(vgt).sort((a,b)=>a[1].rank-b[1].rank);
+    const top3=entries.slice(0,3);
+    const podiumColor=['#F59E0B','#94A3B8','#B45309'];
+    const podiumEmoji=['🥇','🥈','🥉'];
+    h+=`<div class="sh" style="margin-top:18px">🏆 Meus 3 fornecedores mais fortes</div>`;
+    h+=`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px">`;
+    top3.forEach(([ind,{pts,rank}],i)=>{
+      const total=G.winners.bySupplier[ind]?G.winners.bySupplier[ind].length:0;
+      h+=`<div style="background:linear-gradient(135deg,#1E3A5F,#0F172A);border:2px solid ${podiumColor[i]};border-radius:12px;padding:12px;text-align:center">
+        <div style="font-size:26px">${podiumEmoji[i]}</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.75);margin:4px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${normalizeInd(ind)}</div>
+        <div style="font-size:24px;font-weight:800;color:${podiumColor[i]};line-height:1.1">${rank}°</div>
+        <div style="font-size:10px;color:rgba(255,255,255,.5);margin-top:2px">${pts.toFixed(3)} pts${total>0?` · de ${total}`:''}</div>
+      </div>`;
+    });
+    h+=`</div>`;
+    h+=`<div class="sh">📊 Minha colocação por fornecedor — Acumulado</div>`;
+    h+=`<div style="overflow-x:auto;margin-bottom:14px"><table style="width:100%;border-collapse:collapse;font-size:12px">`;
+    h+=`<tr style="background:#1E3A5F;color:#fff"><th style="padding:7px 12px;text-align:left;font-weight:600">Fornecedor</th><th style="padding:7px 10px;text-align:center;font-weight:600">Colocação</th><th style="padding:7px 10px;text-align:right;font-weight:600">Pts acum.</th><th style="padding:7px 10px;text-align:center;font-weight:600">Total GTs</th></tr>`;
+    entries.forEach(([ind,{pts,rank}],i)=>{
+      const total=G.winners.bySupplier[ind]?G.winners.bySupplier[ind].length:0;
+      const bc=rank===1?'var(--green)':rank<=3?'var(--orange)':rank<=10?'var(--blue)':'var(--txt)';
+      const rl=rank===1?'🏆 1°':rank<=3?`🔥 ${rank}°`:rank<=10?`⚡ ${rank}°`:`${rank}°`;
+      const bg=i%2===0?'var(--card)':'var(--bg)';
+      h+=`<tr style="background:${bg}"><td style="padding:7px 12px">${normalizeInd(ind)}</td><td style="padding:7px 10px;text-align:center;font-weight:700;color:${bc}">${rl}</td><td style="padding:7px 10px;text-align:right;color:var(--txt2)">${pts.toFixed(3)}</td><td style="padding:7px 10px;text-align:center;color:var(--txt2)">${total>0?total:''}</td></tr>`;
+    });
+    h+=`</table></div>`;
+  }
+
   area.innerHTML=h;
 }
 
