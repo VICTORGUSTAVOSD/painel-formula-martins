@@ -337,7 +337,7 @@ const RCA_COLORS = ['#1D4ED8','#7C3AED','#0D9488','#B45309','#9333EA','#0369A1',
 
 
 // ============ FILE UPLOAD - ROBUST VERSION ============
-const G = {curr:null, prev:null, uf:null, prevUf:null, gt:null, prevGt:null, winners:null, files:{curr:null, prev:null, uf:null}, updatedAt:null};
+const G = {curr:null, prev:null, uf:null, prevUf:null, gt:null, prevGt:null, winners:null, gtRank:null, rcaRank:null, files:{curr:null, prev:null, uf:null}, updatedAt:null};
 
 // ============ PERSISTÊNCIA (localStorage + Supabase sync) ============
 const STORE_KEY = 'painel_formula_martins_v1';
@@ -345,13 +345,15 @@ const STORE_KEY = 'painel_formula_martins_v1';
 // ── Configuração Google Sheets ────────────────────────────────────────────
 // Publique cada aba como CSV: Arquivo → Compartilhar → Publicar na web → CSV
 // Cole as URLs resultantes abaixo.
-const GS_CURR_URL    = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vScBsLX7FkMyAMQ3M79FcKJONYT95bEEcPqYgEnJsQ7bxCLVJwMS-HdQ2KeBwEcYg/pub?output=csv';    // parcial dos RCAs
-const GS_GT_URL      = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRU0jx8H_cH5Hi80L174GUwqMlyfn9fIHnJQ5-sWesd9X9XOkx5w2X57Rg2s2DUSw/pub?output=csv';   // parcial do GT (visão regional)
-const GS_UF_URL      = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQw6qCAaOMNBOxc0ofi6zo3eBKUxsctMITPdtEI_1qlyJKZp8gxuLNCbEs60AwauQ/pub?output=csv';   // ranking do estado
+const GS_CURR_URL    = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vScBsLX7FkMyAMQ3M79FcKJONYT95bEEcPqYgEnJsQ7bxCLVJwMS-HdQ2KeBwEcYg/pub?output=csv';    // parcial semanal dos RCAs
+const GS_GT_URL      = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRU0jx8H_cH5Hi80L174GUwqMlyfn9fIHnJQ5-sWesd9X9XOkx5w2X57Rg2s2DUSw/pub?output=csv';   // parcial semanal GT Victor
+const GS_UF_URL      = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQw6qCAaOMNBOxc0ofi6zo3eBKUxsctMITPdtEI_1qlyJKZp8gxuLNCbEs60AwauQ/pub?output=csv';   // ranking do estado MA
 const GS_WINNERS_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRZ0VrnjQaBNvQvECDrg9qfnYBbM_PGRklmhyqh2e5Mz6nhhJCuCLgCFugv7SNuAg/pub?output=csv';  // ganhadores por fornecedor (representantes)
+const GS_GT_RANK_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRcDNk-jPloMC-yLEHXbL44FN5hJDk3Hd1JQKcW_ru86iGhjY3p2n0By_fR9D0lkw/pub?output=csv';  // ranking geral nacional GT (183 GTs)
+const GS_RCA_RANK_URL= 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTP3GrrEKI1lUuhG2W0SAqcgHyPsHls6vAzH6ez7UoGO_4CICSY-cLuLb6M7EHB6g/pub?output=csv';  // ranking geral nacional RCA (3433 reps)
 const GS_CONFIGURED  = !GS_CURR_URL.includes('COLE_URL');
-const GT_ACUMULADO_PTS  = 47.955; // acumulado anual confirmado — fonte: planilha ganhadores
-const GT_RANK_REGIONAL  = 42;     // posição regional de 179 GTs
+const GT_ACUMULADO_PTS  = 53.533; // fallback — sobrescrito pelo GS_GT_RANK_URL ao carregar
+const GT_RANK_REGIONAL  = 32;     // fallback — sobrescrito pelo GS_GT_RANK_URL ao carregar
 
 function _parseCSVRaw(text){
   const rows=[];
@@ -427,10 +429,29 @@ async function goProcessFromSheets(opts={}){
     }else if(stored&&stored.winners){
       newWinners=stored.winners;
     }
+    // Carrega ranking geral GT
+    let newGtRank=null;
+    if(!GS_GT_RANK_URL.includes('COLE_URL')){
+      if(stat) stat.textContent='📊 Carregando ranking nacional GT…';
+      const rawGtRank=await _loadGSRaw(GS_GT_RANK_URL);
+      newGtRank=buildGTRankData(rawGtRank);
+    }else if(stored&&stored.gtRank){
+      newGtRank=stored.gtRank;
+    }
+    // Carrega ranking geral RCA
+    let newRcaRank=null;
+    if(!GS_RCA_RANK_URL.includes('COLE_URL')){
+      if(stat) stat.textContent='🏆 Carregando ranking nacional RCA…';
+      const rawRcaRank=await _loadGSRaw(GS_RCA_RANK_URL);
+      newRcaRank=buildRCARankData(rawRcaRank);
+    }else if(stored&&stored.rcaRank){
+      newRcaRank=stored.rcaRank;
+    }
     G.curr=newCurr; G.prev=newPrev;
     G.gt=newGt; G.prevGt=newPrevGt;
     G.uf=newUf; G.prevUf=newPrevUf;
     G.winners=newWinners;
+    G.gtRank=newGtRank; G.rcaRank=newRcaRank;
     G.updatedAt=new Date().toISOString();
     saveStore();
     renderDashboard();
@@ -506,6 +527,7 @@ function saveStore(){
       prevUf:G.prevUf||null,
       gt:G.gt||null, prevGt:G.prevGt||null,
       winners:G.winners||null,
+      gtRank:G.gtRank||null, rcaRank:G.rcaRank||null,
       updatedAt:G.updatedAt||new Date().toISOString()
     };
     localStorage.setItem(STORE_KEY,JSON.stringify(payload));
@@ -1264,8 +1286,10 @@ function renderDashboard(){
   const rcas=Object.keys(curr.rcas);
   const ranked=[...rcas].sort((a,b)=>curr.rcas[b].total-curr.rcas[a].total);
 
-  // Header stats — acumulado GT fixo + RCAs ativos
-  document.getElementById('hdr-total').textContent=`${Math.round(GT_ACUMULADO_PTS)} pts · ${GT_RANK_REGIONAL}° regional`;
+  // Header stats — usa ranking live se disponível, senão fallback
+  const _vp=G.gtRank?G.gtRank.victPts:GT_ACUMULADO_PTS;
+  const _vr=G.gtRank?G.gtRank.victRank:GT_RANK_REGIONAL;
+  document.getElementById('hdr-total').textContent=`${Math.round(_vp)} pts · ${_vr}° nacional`;
   document.getElementById('hdr-rcas').textContent=`${rcas.length} RCAs ativos`;
   const upd=document.getElementById('hdr-updated');
   if(upd) upd.textContent = G.updatedAt ? ('🕒 '+fmtUpdatedAt(G.updatedAt)) : '';
@@ -1417,21 +1441,86 @@ function showRegSupDetail(ind,el){
   det.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 
+// ============ RANKING NACIONAL PARSERS ============
+function buildGTRankData(raw){
+  let hRow=-1,cFunc=0,cPts=3,cRank=4;
+  for(let i=0;i<Math.min(raw.length,4);i++){
+    const r=raw[i].map(c=>String(c).toLowerCase().trim());
+    if(r.some(c=>c.includes('funcionario'))){
+      hRow=i;
+      r.forEach((c,j)=>{
+        if(c.includes('funcionario'))cFunc=j;
+        else if(c==='pontos')cPts=j;
+        else if(c.includes('ranking'))cRank=j;
+      });
+      break;
+    }
+  }
+  if(hRow<0)return null;
+  const totalGTs=raw.length-hRow-1;
+  for(let i=hRow+1;i<raw.length;i++){
+    const r=raw[i];
+    if(String(r[cFunc]||'').includes('77682')){
+      return{
+        victRank:parseInt(String(r[cRank]||'').replace(/[^0-9]/g,''))||999,
+        victPts:parseN(r[cPts]),
+        totalGTs
+      };
+    }
+  }
+  return{victRank:999,victPts:0,totalGTs};
+}
+
+function buildRCARankData(raw){
+  let hRow=-1,cFunc=0,cGestor=1,cPts=3,cRank=4;
+  for(let i=0;i<Math.min(raw.length,4);i++){
+    const r=raw[i].map(c=>String(c).toLowerCase().trim());
+    if(r.some(c=>c.includes('funcionario'))){
+      hRow=i;
+      r.forEach((c,j)=>{
+        if(c.includes('funcionario'))cFunc=j;
+        else if(c.includes('gestor'))cGestor=j;
+        else if(c==='pontos')cPts=j;
+        else if(c.includes('ranking'))cRank=j;
+      });
+      break;
+    }
+  }
+  if(hRow<0)return{};
+  const result={};
+  for(let i=hRow+1;i<raw.length;i++){
+    const r=raw[i];
+    const gestor=String(r[cGestor]||'').trim();
+    if(!gestor.toUpperCase().includes(MY_GESTOR_KEY))continue;
+    const func=String(r[cFunc]||'').trim();
+    const normName=normalizeRCA(func);
+    if(!normName)continue;
+    result[normName]={
+      rank:parseInt(String(r[cRank]||'').replace(/[^0-9]/g,''))||999,
+      pts:parseN(r[cPts])
+    };
+  }
+  return result;
+}
+
 // ============ TAB GT VICTOR ============
 function renderGTVictor(){
   const area=document.getElementById('pg-regional');
+  const victPts  = G.gtRank ? G.gtRank.victPts  : GT_ACUMULADO_PTS;
+  const victRank = G.gtRank ? G.gtRank.victRank : GT_RANK_REGIONAL;
+  const totalGTs = G.gtRank ? G.gtRank.totalGTs : 179;
   let h=`<div style="background:linear-gradient(135deg,#0F172A,#1E3A5F);border-radius:12px;padding:16px;margin-bottom:14px">
     <div style="font-size:11px;color:rgba(255,255,255,.5);text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px">GT Victor — Acumulado Anual</div>
     <div style="display:flex;gap:10px;flex-wrap:wrap">
       <div style="background:rgba(255,255,255,.12);border-radius:9px;padding:10px 16px;flex:1;min-width:90px">
         <div style="font-size:11px;color:rgba(255,255,255,.55)">Pontos acumulados</div>
-        <div style="font-size:28px;font-weight:800;color:#38BDF8;line-height:1.1">${Math.round(GT_ACUMULADO_PTS)}</div>
-        <div style="font-size:10px;color:rgba(255,255,255,.4);margin-top:1px">${GT_ACUMULADO_PTS.toFixed(3)} pts</div>
+        <div style="font-size:28px;font-weight:800;color:#38BDF8;line-height:1.1">${Math.round(victPts)}</div>
+        <div style="font-size:10px;color:rgba(255,255,255,.4);margin-top:1px">${victPts.toFixed(3)} pts</div>
       </div>
       <div style="background:rgba(255,255,255,.12);border-radius:9px;padding:10px 16px;flex:1;min-width:90px">
-        <div style="font-size:11px;color:rgba(255,255,255,.55)">Posição regional</div>
-        <div style="font-size:28px;font-weight:800;color:#A78BFA;line-height:1.1">${GT_RANK_REGIONAL}°</div>
-        <div style="font-size:10px;color:rgba(255,255,255,.4);margin-top:1px">de 179 GTs</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.55)">Posição nacional</div>
+        <div style="font-size:28px;font-weight:800;color:#A78BFA;line-height:1.1">${victRank}°</div>
+        <div style="font-size:10px;color:rgba(255,255,255,.4);margin-top:1px">de ${totalGTs} GTs</div>
       </div>
       <div style="background:rgba(255,255,255,.07);border-radius:9px;padding:10px 16px;flex:1;min-width:90px;opacity:.6">
         <div style="font-size:11px;color:rgba(255,255,255,.5)">Posição no estado</div>
@@ -1638,12 +1727,13 @@ function renderGoals(){
     Critérios: <strong>1°</strong> no estado · <strong>Top 3</strong> regional · <strong>1°</strong> por fornecedor
   </div>`;
 
-  const{nationalRanking}=G.winners;
+  // Usar ranking oficial RCA se disponível, senão derivado dos ganhadores
+  const _rcaRankSrc=G.rcaRank||(G.winners?G.winners.nationalRanking:null);
 
   ranked.forEach(rca=>{
     const ufEntry=G.uf?G.uf.myTeam.find(r=>r.name===rca):null;
     const ufRank=ufEntry?ufEntry.rank:999;
-    const natEntry=nationalRanking?nationalRanking[rca]:null;
+    const natEntry=_rcaRankSrc?_rcaRankSrc[rca]:null;
     const natRank=natEntry?natEntry.rank:999;
     const natPts=natEntry?natEntry.pts:0;
     const winData=myTeam[rca];
@@ -2298,7 +2388,7 @@ function openSavedDashboard(){
   const s=loadStore();
   if(!s || !s.curr){ return false; }
   G.curr=s.curr; G.prev=s.prev||null; G.uf=s.uf||null; G.prevUf=s.prevUf||null;
-  G.gt=s.gt||null; G.prevGt=s.prevGt||null; G.winners=s.winners||null; G.updatedAt=s.updatedAt||null;
+  G.gt=s.gt||null; G.prevGt=s.prevGt||null; G.winners=s.winners||null; G.gtRank=s.gtRank||null; G.rcaRank=s.rcaRank||null; G.updatedAt=s.updatedAt||null;
   try{
     renderDashboard();
     document.getElementById('upload-screen').style.display='none';
@@ -2317,7 +2407,7 @@ window.addEventListener('DOMContentLoaded', async function(){
     const s=loadStore();
     if(s && s.curr){
       G.curr=s.curr; G.prev=s.prev||null; G.uf=s.uf||null; G.prevUf=s.prevUf||null;
-      G.gt=s.gt||null; G.prevGt=s.prevGt||null; G.winners=s.winners||null; G.updatedAt=s.updatedAt||null;
+      G.gt=s.gt||null; G.prevGt=s.prevGt||null; G.winners=s.winners||null; G.gtRank=s.gtRank||null; G.rcaRank=s.rcaRank||null; G.updatedAt=s.updatedAt||null;
       document.getElementById('upload-screen').style.display='none';
       document.getElementById('dashboard').style.display='block';
       renderDashboard();
