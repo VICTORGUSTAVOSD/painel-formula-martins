@@ -1529,12 +1529,33 @@ function renderGTVictor(){
       </div>
     </div>
   </div>`;
+  // Ranking acumulado por fornecedor (fonte: ganhadores)
+  if(G.winners&&G.winners.victorGT){
+    const vgt=G.winners.victorGT;
+    const entries=Object.entries(vgt).sort((a,b)=>a[1].rank-b[1].rank);
+    if(entries.length>0){
+      h+=`<div class="sh">🏅 Ranking acumulado por fornecedor</div>`;
+      h+=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:14px">`;
+      entries.forEach(([ind,{pts,rank}])=>{
+        const total=bySupplier&&G.winners.bySupplier[ind]?G.winners.bySupplier[ind].length:0;
+        const bc=rank===1?'var(--green)':rank<=3?'var(--orange)':rank<=10?'var(--blue)':'var(--border)';
+        const rl=rank===1?'🏆 1°':rank<=3?`🔥 ${rank}°`:rank<=10?`⚡ ${rank}°`:`${rank}°`;
+        h+=`<div style="background:var(--card);border:1.5px solid ${bc};border-radius:8px;padding:8px 10px">
+          <div style="font-size:10px;color:var(--txt2);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${normalizeInd(ind)}</div>
+          <div style="font-size:20px;font-weight:800;color:${bc};line-height:1.1">${rl}</div>
+          <div style="font-size:10px;color:var(--txt2);margin-top:2px">${pts.toFixed(3)} pts${total>0?` · de ${total}`:''}</div>
+        </div>`;
+      });
+      h+=`</div>`;
+    }
+  }
+
   if(G.gt){
     const reg=G.gt.reg;
     const inds=Object.keys(reg);
     const totalPts=Object.values(reg).reduce((s,d)=>s+d.c[3]+d.s[3]+d.v[3],0);
     const scoring=inds.filter(i=>{const d=reg[i];return d.c[3]+d.s[3]+d.v[3]>0;}).length;
-    h+=`<div class="sh">📊 Parcial desta semana — ${totalPts.toFixed(3)} pts · ${scoring} de ${inds.length} fornecedores pontuando</div>`;
+    h+=`<div class="sh">📋 Parcial desta semana — ${totalPts.toFixed(3)} pts · ${scoring} de ${inds.length} fornecedores pontuando</div>`;
     h+=`<div class="sup-grid" id="gt-sup-grid">`;
     const supSorted=Object.entries(reg).sort((a,b)=>(b[1].c[3]+b[1].s[3]+b[1].v[3])-(a[1].c[3]+a[1].s[3]+a[1].v[3]));
     supSorted.forEach(([ind,d])=>{
@@ -1601,8 +1622,8 @@ function buildWinnersData(raw){
       break;
     }
   }
-  if(hRow<0)return{bySupplier:{},myTeam:{}};
-  const bySupplier={},myTeam={};
+  if(hRow<0)return{bySupplier:{},myTeam:{},victorGT:{}};
+  const bySupplier={},myTeam={},victorGT={};
   let curFunc='',curGestor='';
   for(let i=hRow+1;i<raw.length;i++){
     const r=raw[i];
@@ -1614,8 +1635,10 @@ function buildWinnersData(raw){
     if(func){curFunc=func;curGestor=gestor;}
     if(!ind||!curFunc)continue;
     const isMyTeam=curGestor.toUpperCase().includes(MY_GESTOR_KEY);
+    const isVictor=curFunc.includes('77682');
     if(!bySupplier[ind])bySupplier[ind]=[];
     bySupplier[ind].push({func:curFunc,gestor:curGestor,pts,rank,isMyTeam});
+    if(isVictor) victorGT[ind]={pts,rank};
     if(isMyTeam){
       const normName=normalizeRCA(curFunc);
       if(normName){
@@ -1645,21 +1668,91 @@ function buildWinnersData(raw){
     if(normName) nationalRanking[normName]={rank:i+1,pts:rep.pts};
   });
 
-  return{bySupplier,myTeam,nationalRanking};
+  return{bySupplier,myTeam,nationalRanking,victorGT};
 }
 
 // ============ TAB GANHADORES POR FORNECEDOR ============
+let _winnersMode=0; // 0=por indústria A-Z  1=melhor da equipe  2=por colocação
+
+function setWinnersMode(m){_winnersMode=m;renderWinners();}
+
 function renderWinners(){
   const area=document.getElementById('pg-winners');
   if(!G.winners){area.innerHTML='<div class="alert al-y">Dados não carregados.</div>';return;}
   const{bySupplier,myTeam}=G.winners;
-  const suppliers=Object.keys(bySupplier).sort();
-  let h=`<div class="sh">🥇 Ganhadores por Fornecedor — equipe em destaque</div>`;
-  h+=`<div style="font-size:11px;color:var(--txt2);margin-bottom:12px;display:flex;gap:12px;flex-wrap:wrap">
-    <span><span style="color:var(--green);font-weight:700">●</span> Ganhando (1°)</span>
+
+  const btnStyle=(active)=>`style="padding:6px 12px;border-radius:20px;border:1.5px solid ${active?'var(--blue)':'var(--border)'};background:${active?'var(--blue)':'transparent'};color:${active?'#fff':'var(--txt2)'};font-size:12px;font-weight:600;cursor:pointer"`;
+  let h=`<div class="sh">🥇 Ganhadores por Fornecedor</div>`;
+  h+=`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px">
+    <button ${btnStyle(_winnersMode===0)} onclick="setWinnersMode(0)">Por indústria</button>
+    <button ${btnStyle(_winnersMode===1)} onclick="setWinnersMode(1)">Melhor da equipe</button>
+    <button ${btnStyle(_winnersMode===2)} onclick="setWinnersMode(2)">Por colocação</button>
+  </div>`;
+  h+=`<div style="font-size:11px;color:var(--txt2);margin-bottom:10px;display:flex;gap:12px;flex-wrap:wrap">
+    <span><span style="color:var(--green);font-weight:700">●</span> 1° lugar</span>
     <span><span style="color:var(--orange);font-weight:700">●</span> Top 3</span>
     <span><span style="color:#6B7280;font-weight:700">●</span> Fora do pódio</span>
   </div>`;
+
+  function repCard(name,rank,pts,leaderPts,indName){
+    const gap=leaderPts-pts;
+    const isWin=rank===1,isClose=rank<=3;
+    const bc=isWin?'var(--green)':isClose?'var(--orange)':'#374151';
+    const lbl=isWin?'🏆 1°':isClose?`🔥 ${rank}°`:`${rank}°`;
+    const lc=isWin?'var(--green)':isClose?'var(--orange)':'var(--txt2)';
+    return`<div class="win-rep" style="border-left:3px solid ${bc}">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span style="font-weight:600">${name}${indName?`<span style="font-weight:400;font-size:11px;color:var(--txt2)"> · ${indName}</span>`:''}
+        </span>
+        <span style="color:${lc};font-weight:700;font-size:12px">${lbl}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:3px">
+        <span style="font-size:12px;color:var(--blue);font-weight:600">${pts.toFixed(3)} pts</span>
+        <span style="font-size:11px;color:var(--txt2)">${isWin?'✅ ganhando':'falta '+gap.toFixed(3)+' p/ 1°'}</span>
+      </div>
+    </div>`;
+  }
+
+  if(_winnersMode===2){
+    // MODO 3: lista plana de todas as posições ordenadas por colocação
+    const allPositions=[];
+    Object.entries(myTeam).forEach(([name,d])=>{
+      Object.entries(d.suppliers).forEach(([ind,{pts,rank}])=>{
+        const all=bySupplier[ind]||[];
+        const leader=all[0];
+        allPositions.push({name,ind,pts,rank,leaderPts:leader?leader.pts:pts});
+      });
+    });
+    allPositions.sort((a,b)=>a.rank-b.rank);
+    if(allPositions.length===0){
+      h+=`<div class="alert al-y">Sem dados de representantes. Verifique a planilha de ganhadores.</div>`;
+    } else {
+      h+=`<div class="win-reps" style="gap:8px">`;
+      allPositions.forEach(p=>{
+        h+=repCard(p.name,p.rank,p.pts,p.leaderPts,normalizeInd(p.ind));
+      });
+      h+=`</div>`;
+    }
+    area.innerHTML=h;
+    return;
+  }
+
+  // MODOS 0 e 1: agrupados por fornecedor
+  let suppliers=Object.keys(bySupplier);
+  if(_winnersMode===0){
+    suppliers.sort();
+  } else {
+    // Modo 1: ordena por melhor colocação da equipe em cada fornecedor
+    suppliers.sort((a,b)=>{
+      const bestA=Math.min(...(Object.values(myTeam)
+        .filter(d=>d.suppliers[a]).map(d=>d.suppliers[a].rank)),[999]);
+      const bestB=Math.min(...(Object.values(myTeam)
+        .filter(d=>d.suppliers[b]).map(d=>d.suppliers[b].rank)),[999]);
+      if(bestA!==bestB)return bestA-bestB;
+      return a.localeCompare(b);
+    });
+  }
+
   suppliers.forEach(ind=>{
     const all=bySupplier[ind];
     const leader=all[0];if(!leader)return;
@@ -1677,23 +1770,7 @@ function renderWinners(){
       </div>`;
     if(myReps.length>0){
       h+=`<div class="win-reps">`;
-      myReps.forEach(rep=>{
-        const gap=leaderPts-rep.pts;
-        const isWin=rep.rank===1,isClose=rep.rank<=3;
-        const bc=isWin?'var(--green)':isClose?'var(--orange)':'#374151';
-        const lbl=isWin?'🏆 1° lugar':isClose?`🔥 ${rep.rank}° lugar`:`${rep.rank}° lugar`;
-        const lc=isWin?'var(--green)':isClose?'var(--orange)':'var(--txt2)';
-        h+=`<div class="win-rep" style="border-left:3px solid ${bc}">
-          <div style="display:flex;justify-content:space-between">
-            <span style="font-weight:600">${rep.name}</span>
-            <span style="color:${lc};font-weight:700;font-size:12px">${lbl}</span>
-          </div>
-          <div style="display:flex;justify-content:space-between;margin-top:3px">
-            <span style="font-size:12px;color:var(--blue);font-weight:600">${rep.pts.toFixed(3)} pts</span>
-            <span style="font-size:11px;color:var(--txt2)">${isWin?'✅ já está ganhando':'falta '+gap.toFixed(3)+' pts p/ 1°'}</span>
-          </div>
-        </div>`;
-      });
+      myReps.forEach(rep=>{h+=repCard(rep.name,rep.rank,rep.pts,leaderPts,'');});
       h+=`</div>`;
     } else {
       h+=`<div style="padding:8px 10px;font-size:12px;color:var(--txt2);font-style:italic">Sem representante da equipe neste fornecedor</div>`;
