@@ -870,7 +870,7 @@ function buildStructure(rows, isGT=false){
         else if(dd[0]>0&&dd[2]<90){
           const gap=dd[0]*0.9-dd[1];
           if(gap>0){
-            let gStr=p2==='VND'?`R$${Math.round(gap).toLocaleString('pt-BR')}`:p2==='CLI'?`${gap.toFixed(1)} cli`:`+${gap.toFixed(2)} SKU/ped`;
+            let gStr=p2==='VND'?`R$${Math.round(gap).toLocaleString('pt-BR')}`:p2==='CLI'?`${gap.toFixed(1)} cli`:`+${gap.toFixed(2)} SKU médio`;
             gaps.push({i:ind,t:p2,c:Math.round(dd[2]*10)/10,g:gStr,ga:gap});
           }
         }
@@ -962,7 +962,7 @@ function generateMsg(rca,curr,prev,rankCurr,rankPrev,totalRCAs){
         let actionStr;
         if(l==='VND')actionStr=`vender mais R$${Math.round(gap).toLocaleString('pt-BR')}`;
         else if(l==='CLI')actionStr=`positivar mais ${Math.ceil(gap)} cliente${Math.ceil(gap)!==1?'s':''}`;
-        else actionStr=`aumentar +${gap.toFixed(1)} sku/pedido`;
+        else actionStr=`ampliar mix de SKUs (média atual baixa)`;
         const isP2=(id.p2===l);
         close.push({ind,l,pct:dd[2],actionStr,isP2});
       }
@@ -1126,14 +1126,14 @@ function exportStateRanking(){
   if(!G.uf)return;
   const{ranking,myTeam,leaderPts,leaderName,totalReps,uf}=G.uf;
   const showSet=new Set();
-  ranking.slice(0,20).forEach(r=>showSet.add(r.rank));
+  ranking.slice(0,10).forEach(r=>showSet.add(r.rank));
   myTeam.forEach(r=>showSet.add(r.rank));
   const toShow=ranking.filter(r=>showSet.has(r.rank));
   const rows=toShow.map(r=>{
     const prev=G.prevUf?.ranking?.find(p=>p.name===r.name);
     const moved=prev!=null?prev.rank-r.rank:null;
-    return{name:(r.isMine?'[MEU GT] ':'')+r.name,pts:r.pts.toFixed(2)+' pts',sub:'GT '+r.gestorShort,
-      stats:(r.isMine?'MEU GT · ':'')+r.rank+'° no estado · falta '+r.gap.toFixed(2)+' pts p/ 1°',
+    return{name:(r.isMine?'[GT Victor] ':'')+r.name,pts:r.pts.toFixed(2)+' pts',sub:'GT '+r.gestorShort,
+      stats:(r.isMine?'GT Victor · ':'')+r.rank+'° no estado · falta '+r.gap.toFixed(2)+' pts p/ 1°',
       color:r.isMine?'#1D4ED8':'#6B7280',accent:r.isMine?'#1D4ED8':null,pct:r.pts/leaderPts,mov:moved};
   });
   _exportRankingCanvas('Ranking do Estado MA — Formula Martins',
@@ -1214,12 +1214,12 @@ function exportRCACard(rcaName){
 function _fmtIndVal(v,tipo){
   if(tipo==='VND')return'R$'+Math.round(v).toLocaleString('pt-BR');
   if(tipo==='CLI')return v.toFixed(0)+' cli';
-  return v.toFixed(1)+' sku/ped';
+  return v.toFixed(1)+' sku médio';
 }
 function _fmtIndGap(v,tipo){
   if(tipo==='VND')return'R$'+Math.round(v).toLocaleString('pt-BR');
   if(tipo==='CLI')return Math.ceil(v)+' cli';
-  return v.toFixed(1)+' sku/ped';
+  return v.toFixed(1)+' sku médio';
 }
 
 function _buildRCAListHtml(rcaName,r){
@@ -1400,7 +1400,7 @@ function showRegSupDetail(ind,el){
   [{k:'c',l:'CLI'},{k:'s',l:'SKU'},{k:'v',l:'VND'}].forEach(({k,l})=>{
     const isP2=p2===l;const dd=d[k];const pct=dd[2];const ocd=dd[0];const rlz=dd[1];const pts=dd[3];
     const gap=pct<90&&ocd>0?ocd*0.9-rlz:0;
-    const gstr=l==='VND'?`R$${Math.round(gap).toLocaleString('pt-BR')}`:l==='CLI'?`${gap.toFixed(1)} cli`:`+${gap.toFixed(2)} SKU/ped`;
+    const gstr=l==='VND'?`R$${Math.round(gap).toLocaleString('pt-BR')}`:l==='CLI'?`${gap.toFixed(1)} cli`:`+${gap.toFixed(2)} SKU médio`;
     h+=`<div class="rc-i" style="${isP2?'background:var(--purple-bg);':''}">
       <div class="rc-i-lbl">${l}${isP2?` ${p2badge(p2)}`:''}</div>
       <div class="rc-i-pct" style="color:${pctCol(pct)}">${fmtPct(pct)}</div>
@@ -1423,7 +1423,7 @@ function showRegSupDetail(ind,el){
     const p2k=p2==='CLI'?'c':p2==='SKU'?'s':'v';
     const p2dd=rd[p2k]||[0,0,0,0,1];
     const gap=p2&&p2dd[2]<90&&p2dd[0]>0?p2dd[0]*0.9-p2dd[1]:0;
-    const gstr=p2==='VND'?`R$${Math.round(gap).toLocaleString('pt-BR')}`:p2==='CLI'?`${gap.toFixed(1)} cli`:`+${gap.toFixed(2)} SKU/ped`;
+    const gstr=p2==='VND'?`R$${Math.round(gap).toLocaleString('pt-BR')}`:p2==='CLI'?`${gap.toFixed(1)} cli`:`+${gap.toFixed(2)} SKU médio`;
     h+=`<div class="sc-row" style="background:${Number(total)>0?'#F0FDF4':gap>0?'#FFFBEB':''}">
       <div class="sc-top">
         <div class="sc-rca" style="color:${col}">${rca}</div>
@@ -1589,7 +1589,7 @@ function showGTSupDetail(ind,el){
   [{k:'c',l:'CLI'},{k:'s',l:'SKU'},{k:'v',l:'VND'}].forEach(({k,l})=>{
     const isP2=p2===l;const dd=d[k];const pct=dd[2];const ocd=dd[0];const rlz=dd[1];const pts=dd[3];
     const gap=pct<90&&ocd>0?ocd*0.9-rlz:0;
-    const gstr=l==='VND'?`R$${Math.round(gap).toLocaleString('pt-BR')}`:l==='CLI'?`${gap.toFixed(1)} cli`:`+${gap.toFixed(2)} SKU/ped`;
+    const gstr=l==='VND'?`R$${Math.round(gap).toLocaleString('pt-BR')}`:l==='CLI'?`${gap.toFixed(1)} cli`:`+${gap.toFixed(2)} SKU médio`;
     h+=`<div class="rc-i" style="${isP2?'background:var(--purple-bg);':''}">
       <div class="rc-i-lbl">${l}${isP2?` ${p2badge(p2)}`:''}</div>
       <div class="rc-i-pct" style="color:${pctCol(pct)}">${fmtPct(pct)}</div>
@@ -1691,7 +1691,7 @@ function renderWinners(){
   h+=`<div style="font-size:11px;color:var(--txt2);margin-bottom:10px;display:flex;gap:12px;flex-wrap:wrap">
     <span><span style="color:var(--green);font-weight:700">●</span> 1° lugar</span>
     <span><span style="color:var(--orange);font-weight:700">●</span> Top 3</span>
-    <span><span style="color:#6B7280;font-weight:700">●</span> Fora do pódio</span>
+    <span><span style="color:#6B7280;font-weight:700">●</span> Mais distante</span>
   </div>`;
 
   function repCard(name,rank,pts,leaderPts,indName){
@@ -2186,7 +2186,7 @@ function showRCA(rca,curr,prev,ranked){
         ${['c','s','v'].map((k,i)=>{
           const l=['CLI','SKU','VND'][i];const dd=id[k];const pct=dd[2];const ocd=dd[0];const rlz=dd[1];const pts=dd[3];const isP2=p2===l;
           const gap=isP2&&pct<90&&ocd>0?ocd*0.9-rlz:0;
-          const gstr=l==='VND'?`R$${Math.round(gap).toLocaleString('pt-BR')}`:l==='CLI'?`${gap.toFixed(1)} cli`:`+${gap.toFixed(2)} SKU/ped`;
+          const gstr=l==='VND'?`R$${Math.round(gap).toLocaleString('pt-BR')}`:l==='CLI'?`${gap.toFixed(1)} cli`:`+${gap.toFixed(2)} SKU médio`;
           return`<div class="ind-b" style="${isP2?'background:var(--purple-bg);':''}">
             <div class="ind-b-lbl">${l}${isP2?` ${p2badge(p2)}`:''}</div>
             <div class="ind-b-t"><div class="ind-b-f" style="width:${cap(pct)}%;background:${barBg(pct)}"></div><div class="ind-b-90"></div></div>
@@ -2256,7 +2256,7 @@ function showSupplier(ind,curr,ranked){
   [{k:'c',l:'CLI'},{k:'s',l:'SKU'},{k:'v',l:'VND'}].forEach(({k,l})=>{
     const isP2=p2===l;const dd=d[k];const pct=dd[2];const ocd=dd[0];const rlz=dd[1];const pts=dd[3];
     const gap=pct<90&&ocd>0?ocd*0.9-rlz:0;
-    const gstr=l==='VND'?`R$${Math.round(gap).toLocaleString('pt-BR')}`:l==='CLI'?`${gap.toFixed(1)} cli`:`+${gap.toFixed(2)} SKU/ped`;
+    const gstr=l==='VND'?`R$${Math.round(gap).toLocaleString('pt-BR')}`:l==='CLI'?`${gap.toFixed(1)} cli`:`+${gap.toFixed(2)} SKU médio`;
     h+=`<div class="rc-i" style="${isP2?'background:var(--purple-bg);':''}">
       <div class="rc-i-lbl">${l}${isP2?` ${p2badge(p2)}`:''}</div>
       <div class="rc-i-pct" style="color:${pctCol(pct)}">${fmtPct(pct)}</div>
@@ -2279,7 +2279,7 @@ function showSupplier(ind,curr,ranked){
     const p2k=p2==='CLI'?'c':p2==='SKU'?'s':'v';
     const p2dd=rd[p2k]||[0,0,0,0,1];
     const gap=p2&&p2dd[2]<90&&p2dd[0]>0?p2dd[0]*0.9-p2dd[1]:0;
-    const gstr=p2==='VND'?`R$${Math.round(gap).toLocaleString('pt-BR')}`:p2==='CLI'?`${gap.toFixed(1)} cli`:`+${gap.toFixed(2)} SKU/ped`;
+    const gstr=p2==='VND'?`R$${Math.round(gap).toLocaleString('pt-BR')}`:p2==='CLI'?`${gap.toFixed(1)} cli`:`+${gap.toFixed(2)} SKU médio`;
     h+=`<div class="sc-row" style="background:${Number(total)>0?'#F0FDF4':gap>0?'#FFFBEB':''}">
       <div class="sc-top">
         <div class="sc-rca" style="color:${col}">${rca}</div>
@@ -2416,8 +2416,8 @@ function renderStateRanking(d, prevUf){
     <div class="kpi"><div class="kpi-lbl">Líder atual</div><div class="kpi-val" style="font-size:14px">${leaderName}</div><div class="kpi-sub">GT ${leaderGT} · ${leaderPts.toFixed(2)} pts</div></div>
   </div>`;
 
-  // ── MEU GT — ANÁLISE DO INCENTIVO ANUAL ──
-  h+=`<div class="sh">🏆 Meu GT — situação no incentivo anual</div>
+  // ── GT Victor — ANÁLISE DO INCENTIVO ANUAL ──
+  h+=`<div class="sh">🏆 GT Victor — situação no incentivo anual</div>
   <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:14px">`;
   const sortedTeam=[...myTeam].sort((a,b)=>a.rank-b.rank);
   sortedTeam.forEach(r=>{
@@ -2468,8 +2468,8 @@ function renderStateRanking(d, prevUf){
   });
   h+='</div>';
 
-  // ── LEADERBOARD TOP 20 + MEUS ──
-  h+=`<div class="sh">📋 Ranking geral do estado — top 20 + meu GT</div>
+  // ── LEADERBOARD TOP 10 + MEUS ──
+  h+=`<div class="sh">📋 Ranking geral do estado — top 10 + GT Victor</div>
   <div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
     <tr style="background:#1E3A5F;color:#fff">
       <th style="padding:8px 10px;text-align:center;font-weight:600;border:1px solid #2D5A8E">Pos.</th>
@@ -2480,9 +2480,9 @@ function renderStateRanking(d, prevUf){
       <th style="padding:8px 10px;text-align:right;font-weight:600;border:1px solid #2D5A8E">Gap p/ #1</th>
     </tr>`;
 
-  // Collect rows to show: top 20 + all mine not in top 20
+  // Collect rows to show: top 10 + all mine not in top 10
   const showSet=new Set();
-  ranking.slice(0,20).forEach(r=>showSet.add(r.rank));
+  ranking.slice(0,10).forEach(r=>showSet.add(r.rank));
   myTeam.forEach(r=>showSet.add(r.rank));
   const toShow=ranking.filter(r=>showSet.has(r.rank));
   // Add separators for gaps
@@ -2518,7 +2518,7 @@ function renderStateRanking(d, prevUf){
       ${prevUf?`<td style="padding:6px 10px;text-align:center;border:1px solid #E5E7EB;font-size:12px">${tblMovHtml}</td>`:''}
       <td style="padding:6px 10px;border:1px solid #E5E7EB">
         ${mine?`<span style="color:#1D4ED8">★ </span>`:''}${r.name}
-        ${mine?`<span style="font-size:10px;background:#DBEAFE;color:#1D4ED8;padding:1px 5px;border-radius:4px;margin-left:4px">meu GT</span>`:''}
+        ${mine?`<span style="font-size:10px;background:#DBEAFE;color:#1D4ED8;padding:1px 5px;border-radius:4px;margin-left:4px">GT Victor</span>`:''}
       </td>
       <td style="padding:6px 10px;text-align:center;border:1px solid #E5E7EB;font-size:11px;color:var(--txt2)">${r.gestorShort}</td>
       <td style="padding:6px 10px;text-align:right;border:1px solid #E5E7EB;font-weight:${mine?'700':'400'}">${r.pts.toFixed(2)}</td>
@@ -2545,7 +2545,7 @@ function renderStateRanking(d, prevUf){
     const bg=mine?'#EFF6FF':'transparent';
     const fw=mine?'700':'400';
     h+=`<tr style="background:${bg};font-weight:${fw}">
-      <td style="padding:6px 10px;border:1px solid #E5E7EB">${mine?'<span style="color:#1D4ED8">★ </span>':''}${g.short}${mine?' <span style="font-size:10px;background:#DBEAFE;color:#1D4ED8;padding:1px 5px;border-radius:4px">meu GT</span>':''}</td>
+      <td style="padding:6px 10px;border:1px solid #E5E7EB">${mine?'<span style="color:#1D4ED8">★ </span>':''}${g.short}${mine?' <span style="font-size:10px;background:#DBEAFE;color:#1D4ED8;padding:1px 5px;border-radius:4px">GT Victor</span>':''}</td>
       <td style="padding:6px 10px;text-align:center;border:1px solid #E5E7EB;color:${g.bestRank<=3?'#B45309':g.bestRank<=10?'#15803D':'var(--txt2)'}">${g.bestRank}°</td>
       <td style="padding:6px 10px;text-align:center;border:1px solid #E5E7EB">${g.top3>0?`<strong style="color:#B45309">${g.top3}</strong>`:'—'}</td>
       <td style="padding:6px 10px;text-align:center;border:1px solid #E5E7EB;color:${g.top10>0?'#15803D':'var(--txt2)'}">${g.top10||'—'}</td>
