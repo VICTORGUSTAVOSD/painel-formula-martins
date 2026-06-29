@@ -1376,12 +1376,14 @@ function renderDashboard(){
   renderRCATab(curr,prev,ranked);
   renderSupplierTab(curr,prev,ranked);
 
-  // Ganhadores e Metas RCA — mostrar tabs quando dados disponíveis
+  // Metas RCA — mostrar tab quando dados disponíveis
   if(G.winners){
-    document.getElementById('tab-winners').style.display='block';
     document.getElementById('tab-goals').style.display='block';
-    renderWinners();
     renderGoals();
+    // Atualiza a view de ranking se já estiver na aba Por Fornecedor
+    if(_fCurr&&_fView==='ranking'){
+      document.getElementById('sup-filter-results').innerHTML=_buildRankingViewHtml(_fCurr,_fRanked);
+    }
   }
 
   // Show/hide state tab
@@ -2336,13 +2338,26 @@ function showRCA(rca,curr,prev,ranked){
 
 // ============ TAB 4: POR FORNECEDOR ============
 let _fState={ind:null,tipo:'VND',ordem:'desc',status:'all',rca:null};
+let _fView='equipe'; // 'equipe' | 'ranking'
 let _fCurr=null,_fRanked=null;
 function setFState(k,v){
   _fState[k]=v;
   if(_fCurr&&_fRanked){
     document.getElementById('sup-filter-panel').innerHTML=_buildFilterPanelHtml(_fCurr,_fRanked);
-    document.getElementById('sup-filter-results').innerHTML=_buildSupFilterHtml(_fCurr,_fRanked);
+    document.getElementById('sup-filter-results').innerHTML=_fView==='ranking'?_buildRankingViewHtml(_fCurr,_fRanked):_buildSupFilterHtml(_fCurr,_fRanked);
   }
+}
+function setFView(v){
+  _fView=v;
+  if(_fCurr&&_fRanked){
+    document.getElementById('sup-view-toggle').innerHTML=_buildViewToggleHtml();
+    document.getElementById('sup-filter-results').innerHTML=_fView==='ranking'?_buildRankingViewHtml(_fCurr,_fRanked):_buildSupFilterHtml(_fCurr,_fRanked);
+  }
+}
+function _buildViewToggleHtml(){
+  const s=(on)=>`class="pill${on?' on':''}" style="padding:5px 14px;font-size:12px;font-weight:600"`;
+  return`<button ${s(_fView==='equipe')} onclick="setFView('equipe')">👥 Análise da equipe</button>
+    <button ${s(_fView==='ranking')} onclick="setFView('ranking')">🏆 Ranking geral</button>`;
 }
 function _buildFilterPanelHtml(curr,ranked){
   const inds=Object.keys(curr.reg).sort();
@@ -2447,13 +2462,108 @@ function _buildSupFilterHtml(curr,ranked){
   h+=`</table></div><div style="font-size:11px;color:var(--txt2);margin-top:6px;text-align:right">${rows.length} resultado${rows.length!==1?'s':''}</div>`;
   return h;
 }
+function _buildRankingViewHtml(curr,ranked){
+  if(!G.winners)return`<div class="alert al-y" style="margin-top:8px">🏆 Dados de ranking não carregados ainda. Aguarde ou clique em <strong>Atualizar</strong>.</div>`;
+  const{bySupplier,myTeam}=G.winners;
+  const{ind,rca,ordem}=_fState;
+  const TD='padding:7px 10px';const TH='padding:8px 10px;font-weight:600;white-space:nowrap;font-size:11px';
+  const teamInSup=(supInd)=>Object.entries(myTeam)
+    .filter(([name,d])=>{if(rca&&name!==rca)return false;return!!d.suppliers[supInd];})
+    .map(([name,d])=>({name,...d.suppliers[supInd]}))
+    .sort((a,b)=>a.rank-b.rank);
+  const firstName=(raw)=>raw.replace(/^\d+\s*[-–]\s*/,'').trim().split(' ')[0];
+
+  if(ind){
+    // Fornecedor específico: lista completa de ranqueados
+    const all=bySupplier[ind]||[];
+    const leader=all[0];
+    const myReps=teamInSup(ind);
+    const myFuncs=new Set(myReps.map(r=>r.name.toLowerCase()));
+    let h=`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
+      <tr style="background:#1E3A5F;color:#fff">
+        <th style="${TH};text-align:center">Rank</th>
+        <th style="${TH};text-align:left">GT / Gestor</th>
+        <th style="${TH};text-align:right">Pts</th>
+        <th style="${TH};text-align:right">Gap p/ 1°</th>
+      </tr>`;
+    if(all.length===0){
+      h+=`<tr><td colspan="4" style="${TD};text-align:center;color:var(--txt2)">Sem dados para ${normalizeInd(ind)}</td></tr>`;
+    } else {
+      all.forEach((gt,i)=>{
+        const fn=firstName(gt.func);
+        const gest=(gt.gestor||'').split(' ')[0];
+        const isTeam=myFuncs.size>0&&([...myFuncs].some(n=>fn.toLowerCase().includes(n)||n.includes(fn.toLowerCase())));
+        const gap=leader.pts-gt.pts;
+        const rc=gt.rank===1?'var(--green)':gt.rank<=3?'var(--orange)':'var(--txt2)';
+        const bg=isTeam?'rgba(59,130,246,0.1)':i%2===0?'transparent':'rgba(0,0,0,0.02)';
+        h+=`<tr style="background:${bg};border-bottom:1px solid var(--border)">
+          <td style="${TD};text-align:center;font-weight:700;color:${rc}">${gt.rank}°</td>
+          <td style="${TD};font-weight:${isTeam?700:400};color:${isTeam?'var(--blue)':'inherit'}">
+            ${fn} <span style="font-size:10px;color:var(--txt2);font-weight:400">${gest}</span>
+            ${isTeam?`<span style="font-size:10px;background:var(--blue);color:#fff;border-radius:4px;padding:1px 5px;margin-left:4px">equipe</span>`:''}
+          </td>
+          <td style="${TD};text-align:right;font-weight:600">${gt.pts.toFixed(3)}</td>
+          <td style="${TD};text-align:right;font-size:11px;color:${gap===0?'var(--green)':'var(--txt2)'}">${gap===0?'🏆':'-'+gap.toFixed(3)}</td>
+        </tr>`;
+      });
+    }
+    h+=`</table></div>`;
+    if(myReps.length>0)h+=`<div style="margin-top:8px;font-size:11px;color:var(--blue)">● ${myReps.length} membro${myReps.length>1?'s':''} da equipe em ${normalizeInd(ind)}: ${myReps.map(r=>`${r.name} (${r.rank}°)`).join(', ')}</div>`;
+    return h;
+  }
+
+  // Todos fornecedores: tabela resumo
+  let suppliers=Object.keys(bySupplier).sort();
+  if(rca&&myTeam[rca])suppliers=suppliers.filter(s=>myTeam[rca].suppliers[s]);
+  if(ordem==='falta'){
+    suppliers.sort((a,b)=>{
+      const la=(bySupplier[a]||[])[0];const lb=(bySupplier[b]||[])[0];
+      const ba=teamInSup(a)[0];const bb=teamInSup(b)[0];
+      const gA=la&&ba?la.pts-ba.pts:9999;const gB=lb&&bb?lb.pts-bb.pts:9999;
+      return gB-gA;
+    });
+  } else if(ordem==='asc'){
+    suppliers.sort((a,b)=>{const ba=teamInSup(a)[0];const bb=teamInSup(b)[0];return(ba?.rank||9999)-(bb?.rank||9999);});
+  }
+  let h=`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
+    <tr style="background:#1E3A5F;color:#fff">
+      <th style="${TH};text-align:left">Fornecedor</th>
+      <th style="${TH};text-align:left">1° lugar nacional</th>
+      <th style="${TH};text-align:right">Pts líder</th>
+      <th style="${TH};text-align:center">Melhor da equipe</th>
+      <th style="${TH};text-align:center">Rank</th>
+      <th style="${TH};text-align:right">Gap p/ 1°</th>
+    </tr>`;
+  let cnt=0;
+  suppliers.forEach((supInd,i)=>{
+    const all=bySupplier[supInd]||[];const leader=all[0];if(!leader)return;
+    const ln=firstName(leader.func);const lg=(leader.gestor||'').split(' ')[0];
+    const best=teamInSup(supInd)[0];
+    const gap=best?leader.pts-best.pts:null;
+    const rc=best?.rank===1?'var(--green)':best?.rank<=3?'var(--orange)':'var(--txt2)';
+    const bg=i%2===0?'transparent':'rgba(0,0,0,0.02)';
+    cnt++;
+    h+=`<tr style="background:${bg};border-bottom:1px solid var(--border)">
+      <td style="${TD};font-weight:600">${normalizeInd(supInd)}</td>
+      <td style="${TD};color:var(--txt2);font-size:11px">🥇 ${ln} <span style="opacity:.5">${lg}</span></td>
+      <td style="${TD};text-align:right;font-weight:600;color:var(--blue)">${leader.pts.toFixed(3)}</td>
+      <td style="${TD};text-align:center;font-weight:${best?700:400};color:${best?'var(--txt)':'var(--txt2)'}">${best?best.name:'—'}</td>
+      <td style="${TD};text-align:center;font-weight:700;color:${rc}">${best?best.rank+'°':'—'}</td>
+      <td style="${TD};text-align:right;font-weight:600;color:${gap===0?'var(--green)':gap!==null?'var(--orange)':'var(--txt2)'}">${gap===null?'—':gap===0?'🏆 liderando':'-'+gap.toFixed(3)+' pts'}</td>
+    </tr>`;
+  });
+  if(cnt===0)return`<div class="alert al-y" style="margin-top:8px">Nenhum resultado para os filtros selecionados.</div>`;
+  h+=`</table></div><div style="font-size:11px;color:var(--txt2);margin-top:6px;text-align:right">${cnt} fornecedor${cnt!==1?'es':''}</div>`;
+  return h;
+}
 function renderSupplierTab(curr,prev,ranked){
   _fCurr=curr;_fRanked=ranked;
-  const h=`<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:14px">
+  const h=`<div style="display:flex;gap:6px;margin-bottom:12px" id="sup-view-toggle">${_buildViewToggleHtml()}</div>
+  <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:14px">
     <div style="font-size:12px;font-weight:700;color:var(--txt);margin-bottom:10px">🔍 Filtros</div>
     <div id="sup-filter-panel">${_buildFilterPanelHtml(curr,ranked)}</div>
   </div>
-  <div id="sup-filter-results">${_buildSupFilterHtml(curr,ranked)}</div>`;
+  <div id="sup-filter-results">${_fView==='ranking'?_buildRankingViewHtml(curr,ranked):_buildSupFilterHtml(curr,ranked)}</div>`;
   document.getElementById('pg-supplier').innerHTML=h;
 }
 // ============ UF RANKING PARSE ============
