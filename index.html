@@ -870,7 +870,15 @@ function buildStructure(rows, isGT=false){
         else if(dd[0]>0&&dd[2]<90){
           const gap=dd[0]*0.9-dd[1];
           if(gap>0){
-            let gStr=p2==='VND'?`R$${Math.round(gap).toLocaleString('pt-BR')}`:p2==='CLI'?`${gap.toFixed(1)} cli`:`+${gap.toFixed(2)} SKU médio`;
+            let gStr;
+            if(p2==='VND') gStr=`R$${Math.round(gap).toLocaleString('pt-BR')}`;
+            else if(p2==='CLI') gStr=`${gap.toFixed(1)} cli`;
+            else{
+              const cN=Math.round(id.c?id.c[1]:0);
+              const sT=dd[0]*0.9;
+              const nsk=cN>0?Math.ceil(sT*(cN+1)-dd[1]*cN):0;
+              gStr=(nsk>0&&nsk<=100)?`adicionar 1 cliente com ${nsk} SKUs`:`+${gap.toFixed(2)} SKU médio`;
+            }
             gaps.push({i:ind,t:p2,c:Math.round(dd[2]*10)/10,g:gStr,ga:gap});
           }
         }
@@ -1537,7 +1545,7 @@ function renderGTVictor(){
       h+=`<div class="sh">🏅 Ranking acumulado por fornecedor</div>`;
       h+=`<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-bottom:14px">`;
       entries.forEach(([ind,{pts,rank}])=>{
-        const total=bySupplier&&G.winners.bySupplier[ind]?G.winners.bySupplier[ind].length:0;
+        const total=G.winners.bySupplier[ind]?G.winners.bySupplier[ind].length:0;
         const bc=rank===1?'var(--green)':rank<=3?'var(--orange)':rank<=10?'var(--blue)':'var(--border)';
         const rl=rank===1?'🏆 1°':rank<=3?`🔥 ${rank}°`:rank<=10?`⚡ ${rank}°`:`${rank}°`;
         h+=`<div style="background:var(--card);border:1.5px solid ${bc};border-radius:8px;padding:8px 10px">
@@ -2186,12 +2194,14 @@ function showRCA(rca,curr,prev,ranked){
         ${['c','s','v'].map((k,i)=>{
           const l=['CLI','SKU','VND'][i];const dd=id[k];const pct=dd[2];const ocd=dd[0];const rlz=dd[1];const pts=dd[3];const isP2=p2===l;
           const gap=isP2&&pct<90&&ocd>0?ocd*0.9-rlz:0;
-          const gstr=l==='VND'?`R$${Math.round(gap).toLocaleString('pt-BR')}`:l==='CLI'?`${gap.toFixed(1)} cli`:`+${gap.toFixed(2)} SKU médio`;
+          const cliN=l==='SKU'?(Math.round(id.c?id.c[1]:0)):0;
+          const skuN=l==='SKU'&&cliN>0&&gap>0?Math.ceil(ocd*0.9*(cliN+1)-rlz*cliN):0;
+          const gstr=l==='VND'?`R$${Math.round(gap).toLocaleString('pt-BR')}`:l==='CLI'?`${gap.toFixed(1)} cli`:(skuN>0&&skuN<=100)?`1 cliente c/ ${skuN} SKUs`:`+${gap.toFixed(2)} SKU médio`;
           return`<div class="ind-b" style="${isP2?'background:var(--purple-bg);':''}">
             <div class="ind-b-lbl">${l}${isP2?` ${p2badge(p2)}`:''}</div>
             <div class="ind-b-t"><div class="ind-b-f" style="width:${cap(pct)}%;background:${barBg(pct)}"></div><div class="ind-b-90"></div></div>
             <div class="ind-b-pct" style="color:${pctCol(pct)}">${fmtPct(pct)}</div>
-            <div class="ind-b-meta"><span>M:${ocd.toFixed(0)}</span><span>R:${rlz.toFixed(0)}</span></div>
+            <div class="ind-b-meta"><span>M:${ocd.toFixed(l==='SKU'?1:0)}</span><span>R:${rlz.toFixed(l==='SKU'?1:0)}</span></div>
             ${pts>0?`<div style="font-size:10px;font-weight:700;color:var(--green);margin-top:2px">${pts.toFixed(2)}pts</div>`:''}
             ${gap>0?`<div class="ind-b-gap">falta ${gstr}</div>`:''}
           </div>`;
