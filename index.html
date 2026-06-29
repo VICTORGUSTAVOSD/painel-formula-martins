@@ -2350,7 +2350,7 @@ function _buildFilterPanelHtml(curr,ranked){
       <div style="font-size:11px;color:var(--txt2);font-weight:600;margin-bottom:5px">Fornecedor</div>
       <div style="display:flex;flex-wrap:wrap;gap:4px">
         <button class="pill${!_fState.ind?' on':''}" onclick="setFState('ind',null)" style="font-size:11px;padding:4px 9px">Todos</button>
-        ${inds.map(s=>`<button class="pill${_fState.ind===s?' on':''}" onclick="setFState('ind',${JSON.stringify(s)})" style="font-size:11px;padding:4px 9px">${normalizeInd(s)}</button>`).join('')}
+        ${inds.map(s=>`<button class="pill${_fState.ind===s?' on':''}" onclick='setFState("ind",${JSON.stringify(s)})' style="font-size:11px;padding:4px 9px">${normalizeInd(s)}</button>`).join('')}
       </div>
     </div>
     <div style="display:flex;gap:14px;flex-wrap:wrap">
@@ -2380,7 +2380,7 @@ function _buildFilterPanelHtml(curr,ranked){
         <div style="font-size:11px;color:var(--txt2);font-weight:600;margin-bottom:5px">RCA</div>
         <div style="display:flex;gap:4px;flex-wrap:wrap">
           <button class="pill${!_fState.rca?' on':''}" onclick="setFState('rca',null)" style="font-size:11px;padding:4px 8px">Todos</button>
-          ${ranked.map(r=>`<button class="pill${_fState.rca===r?' on':''}" onclick="setFState('rca',${JSON.stringify(r)})" style="font-size:11px;padding:4px 8px">${r}</button>`).join('')}
+          ${ranked.map(r=>`<button class="pill${_fState.rca===r?' on':''}" onclick='setFState("rca",${JSON.stringify(r)})' style="font-size:11px;padding:4px 8px">${r}</button>`).join('')}
         </div>
       </div>
     </div>`;
