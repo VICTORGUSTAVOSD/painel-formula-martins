@@ -2335,6 +2335,9 @@ function showRCA(rca,curr,prev,ranked){
 }
 
 // ============ TAB 4: POR FORNECEDOR ============
+let _supFilter='total'; // 'total'|'CLI'|'SKU'|'VND'
+let _lastSupInd=null,_lastSupCurr=null,_lastSupRanked=null;
+function setSupFilter(f){_supFilter=f;if(_lastSupInd&&_lastSupCurr&&_lastSupRanked)showSupplier(_lastSupInd,_lastSupCurr,_lastSupRanked);}
 function renderSupplierTab(curr,prev,ranked){
   const inds=Object.keys(curr.reg).sort((a,b)=>{
     const at=curr.reg[a].c[3]+curr.reg[a].s[3]+curr.reg[a].v[3];
@@ -2355,6 +2358,7 @@ function renderSupplierTab(curr,prev,ranked){
 }
 
 function showSupplier(ind,curr,ranked){
+  _lastSupInd=ind;_lastSupCurr=curr;_lastSupRanked=ranked;
   const d=curr.reg[ind];if(!d)return;
   const p2=d.p2;const total=(d.c[3]+d.s[3]+d.v[3]).toFixed(2);
   let h=`<div class="sh" style="margin-top:14px">Detalhe: ${ind}</div><div class="reg-card">
@@ -2373,9 +2377,17 @@ function showSupplier(ind,curr,ranked){
       ${gap>0&&isP2?`<div class="rc-i-gap">Falta ${gstr} p/ P2</div>`:''}
     </div>`;
   });
-  h+=`</div></div><div class="sh">Resultado por RCA</div><div class="sc-list">`;
-  ranked.sort((a,b)=>{
+  // Filter bar
+  const _fk=_supFilter==='CLI'?'c':_supFilter==='SKU'?'s':_supFilter==='VND'?'v':null;
+  h+=`</div></div>
+  <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:10px 0 4px">
+    <span style="font-size:11px;color:var(--txt2);font-weight:600">Ordenar por:</span>
+    ${['total','CLI','SKU','VND'].map(f=>`<button class="pill${_supFilter===f?' on':''}" onclick="setSupFilter('${f}')" style="padding:4px 10px;font-size:11px">${f==='total'?'📊 Total':f==='CLI'?'👥 CLI':f==='SKU'?'📦 SKU':'💰 VND'}</button>`).join('')}
+  </div>
+  <div class="sh" style="margin-top:6px">Resultado por RCA${_supFilter!=='total'?` — ${_supFilter} de maior para menor`:''}</div><div class="sc-list">`;
+  [...ranked].sort((a,b)=>{
     const ar=curr.rcas[a]?.inds[ind];const br=curr.rcas[b]?.inds[ind];
+    if(_fk){return((br?br[_fk][2]:0)-(ar?ar[_fk][2]:0));}
     const at=ar?(ar.c[3]+ar.s[3]+ar.v[3]):0;
     const bt=br?(br.c[3]+br.s[3]+br.v[3]):0;
     return bt-at;
@@ -2387,14 +2399,29 @@ function showSupplier(ind,curr,ranked){
     const p2dd=rd[p2k]||[0,0,0,0,1];
     const gap=p2&&p2dd[2]<90&&p2dd[0]>0?p2dd[0]*0.9-p2dd[1]:0;
     const gstr=p2==='VND'?`R$${Math.round(gap).toLocaleString('pt-BR')}`:p2==='CLI'?`${gap.toFixed(1)} cli`:`+${gap.toFixed(2)} SKU médio`;
+    // Detail line for filtered indicator
+    let detailLine='';
+    if(_fk){
+      const fd=rd[_fk];const fpct=fd[2];const focd=fd[0];const frlz=fd[1];const fgap=focd*0.9-frlz;
+      const rlzF=_supFilter==='VND'?'R$'+Math.round(frlz).toLocaleString('pt-BR'):_supFilter==='CLI'?frlz.toFixed(0)+' cli':frlz.toFixed(1)+' sku';
+      const metaF=_supFilter==='VND'?'R$'+Math.round(focd).toLocaleString('pt-BR'):_supFilter==='CLI'?focd.toFixed(0)+' cli':focd.toFixed(1)+' sku';
+      let gapTxt='';
+      if(fgap>0&&fpct<90){
+        if(_supFilter==='SKU'){const cN=Math.round(rd.c[1]);const sT=focd*0.9;const nsk=cN>0?Math.ceil(sT*(cN+1)-frlz*cN):0;gapTxt=cN>0?`próx. c/ ${nsk} SKU`:`falta ${fgap.toFixed(1)} sku`;}
+        else if(_supFilter==='CLI'){gapTxt=`falta ${Math.ceil(fgap)} cli`;}
+        else{gapTxt=`falta R$${Math.round(fgap).toLocaleString('pt-BR')}`;}
+      }
+      detailLine=`<div style="font-size:10px;color:var(--txt2);margin-top:2px">${rlzF} / M:${metaF}${gapTxt?` · <span style="color:var(--orange);font-weight:600">${gapTxt}</span>`:''}</div>`;
+    }
     h+=`<div class="sc-row" style="background:${Number(total)>0?'#F0FDF4':gap>0?'#FFFBEB':''}">
       <div class="sc-top">
         <div class="sc-rca" style="color:${col}">${rca}</div>
         <div class="sc-bars">
-          ${['c','s','v'].map((k,i)=>{const l=['CLI','SKU','VND'][i];const pct=(rd[k]||[0,0,0,0,1])[2];return`<div class="sc-b"><div class="sc-b-lbl">${l}</div><div class="sc-b-t"><div class="sc-b-f" style="width:${cap(pct)}%;background:${barBg(pct)}"></div><div class="sc-b-90"></div></div><div class="sc-b-pct" style="color:${pctCol(pct)}">${fmtPct(pct)}</div></div>`;}).join('')}
+          ${['c','s','v'].map((k,i)=>{const l=['CLI','SKU','VND'][i];const pct=(rd[k]||[0,0,0,0,1])[2];const isActive=_supFilter==='total'||_supFilter===l;return`<div class="sc-b" style="opacity:${isActive?1:0.3}"><div class="sc-b-lbl" style="${isActive&&_supFilter!=='total'?'font-weight:700;color:var(--blue)':''}">${l}</div><div class="sc-b-t"><div class="sc-b-f" style="width:${cap(pct)}%;background:${barBg(pct)}"></div><div class="sc-b-90"></div></div><div class="sc-b-pct" style="color:${pctCol(pct)};${isActive&&_supFilter!=='total'?'font-weight:800;font-size:13px':''}">${fmtPct(pct)}</div></div>`;}).join('')}
         </div>
         <div class="sc-pts" style="color:${Number(total)>0?'var(--green)':'var(--gray)'}">${Number(total)>0?total:'—'}</div>
       </div>
+      ${detailLine}
       ${gap>0?`<div class="sc-gap">⚡ Falta ${gstr} p/ ${p2} P2</div>`:''}
     </div>`;
   });
