@@ -1321,8 +1321,13 @@ function _buildRCAListHtml(rcaName,r){
           infoHtml=`<div style="font-size:9px;color:var(--txt2)">${rlzFmt} / M:${metaFmt}</div>`;
         }else{
           const gap=ocd*0.9-rlz;
+          let gapLine='';
+          if(gap>0){
+            if(l==='SKU'){const cN=Math.round(id.c?id.c[1]:0);const sT=ocd*0.9;const nsk=cN>0?Math.ceil(sT*(cN+1)-rlz*cN):0;gapLine=cN>0?`próx. c/ ${nsk} SKU`:`meta: ${sT.toFixed(1)} SKU/cli`;}
+            else{gapLine=`falta ${_fmtIndGap(gap,l)}`;}
+          }
           infoHtml=`<div style="font-size:9px;color:var(--txt2)">${rlzFmt} / M:${metaFmt}</div>`
-                  +(gap>0?`<div style="font-size:9px;color:var(--orange);font-weight:600">falta ${_fmtIndGap(gap,l)}</div>`:'');
+                  +(gapLine?`<div style="font-size:9px;color:var(--orange);font-weight:600">${gapLine}</div>`:'');
         }
       }else{
         infoHtml=`<div style="font-size:9px;color:#9CA3AF">—</div>`;
