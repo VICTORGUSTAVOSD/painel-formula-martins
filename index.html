@@ -2048,21 +2048,21 @@ function _renderWinningOpps(rca){
       if(rankVal===1){bg='#022C22';border='#10B981';rankColor='#6EE7B7';statusLbl='🏆 JÁ ESTÁ GANHANDO';statusColor='#6EE7B7';}
       else if(rankVal<=3){bg='#1C1917';border='#F59E0B';rankColor='#FDE68A';statusLbl='🎖️ NO PÓDIO';statusColor='#FDE68A';}
       else if(rankVal<=8){bg='#1C1917';border='#3B82F6';rankColor='#93C5FD';statusLbl='⚡ NA BRIGA';statusColor='#93C5FD';}
-      else if(rankVal<999){bg='rgba(255,255,255,.04)';border='rgba(255,255,255,.12)';rankColor='rgba(255,255,255,.4)';statusLbl='';statusColor='rgba(255,255,255,.3)';}
-      else{bg='rgba(255,255,255,.03)';border='rgba(255,255,255,.08)';rankColor='rgba(255,255,255,.25)';statusLbl='— sem dados';statusColor='rgba(255,255,255,.2)';}
+      else if(rankVal<999){bg='#111827';border='#374151';rankColor='#6B7280';statusLbl='';statusColor='#6B7280';}
+      else{bg='#111827';border='#374151';rankColor='#4B5563';statusLbl='— sem dados';statusColor='rgba(255,255,255,.2)';}
     } else if(title.includes('ESTADO')){
       if(rankVal===1){bg='#022C22';border='#10B981';rankColor='#6EE7B7';statusLbl='🏆 CAMPEÃO DO ESTADO';statusColor='#6EE7B7';}
       else if(rankVal<=3){bg='#022C22';border='#34D399';rankColor='#6EE7B7';statusLbl='🎖️ NO PÓDIO';statusColor='#34D399';}
       else if(rankVal<=10){bg='#1C1917';border='#F59E0B';rankColor='#FDE68A';statusLbl='⚡ NA BRIGA';statusColor='#FDE68A';}
-      else if(rankVal<999){bg='rgba(255,255,255,.04)';border='rgba(255,255,255,.12)';rankColor='rgba(255,255,255,.4)';statusLbl='';statusColor='rgba(255,255,255,.3)';}
-      else{bg='rgba(255,255,255,.03)';border='rgba(255,255,255,.08)';rankColor='rgba(255,255,255,.25)';statusLbl='sem dados';statusColor='rgba(255,255,255,.2)';}
+      else if(rankVal<999){bg='#111827';border='#374151';rankColor='#6B7280';statusLbl='';statusColor='#6B7280';}
+      else{bg='#111827';border='#374151';rankColor='#4B5563';statusLbl='sem dados';statusColor='rgba(255,255,255,.2)';}
     } else {
       // Nacional Top 3
       if(rankVal<=3){bg='#022C22';border='#10B981';rankColor='#6EE7B7';statusLbl='🏆 JÁ ESTÁ NO TOP 3';statusColor='#6EE7B7';}
       else if(rankVal<=10){bg='#1C1917';border='#F59E0B';rankColor='#FDE68A';statusLbl='🎯 PRÓXIMO DO TOP 3';statusColor='#FDE68A';}
       else if(rankVal<=30){bg='#1C1917';border='#3B82F6';rankColor='#93C5FD';statusLbl='⚡ NA BRIGA';statusColor='#93C5FD';}
-      else if(rankVal<999){bg='rgba(255,255,255,.04)';border='rgba(255,255,255,.12)';rankColor='rgba(255,255,255,.4)';statusLbl='';statusColor='rgba(255,255,255,.3)';}
-      else{bg='rgba(255,255,255,.03)';border='rgba(255,255,255,.08)';rankColor='rgba(255,255,255,.25)';statusLbl='sem dados';statusColor='rgba(255,255,255,.2)';}
+      else if(rankVal<999){bg='#111827';border='#374151';rankColor='#6B7280';statusLbl='';statusColor='#6B7280';}
+      else{bg='#111827';border='#374151';rankColor='#4B5563';statusLbl='sem dados';statusColor='rgba(255,255,255,.2)';}
     }
     const rankDisp=rankVal<999?`${rankVal}°`:'—';
     const ptsDisp=ptsVal>0?`${ptsVal.toFixed(3)} pts acum.`:'sem dados';
@@ -2082,7 +2082,7 @@ function _renderWinningOpps(rca){
   const isWinning=ufRank===1||natRank<=3||(sup&&sup.rank===1);
   const gradBg=isWinning?'linear-gradient(135deg,#064E3B,#065F46)':hasAnyChance?'linear-gradient(135deg,#1C1403,#3B1E00)':'linear-gradient(135deg,#0F172A,#1E293B)';
 
-  let html=`<div style="${gradBg};border-radius:12px;padding:14px;margin-bottom:14px">
+  let html=`<div style="background:${gradBg};border-radius:12px;padding:14px;margin-bottom:14px">
     <div style="font-size:11px;color:rgba(255,255,255,.5);font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">
       ${isWinning?'🏆 OPORTUNIDADES DE GANHAR — JÁ NA BRIGA!':hasAnyChance?'🎯 OPORTUNIDADES DE GANHAR':'📊 Posição atual — metas de ganho'}
     </div>
