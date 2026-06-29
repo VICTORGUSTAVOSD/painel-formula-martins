@@ -877,7 +877,7 @@ function buildStructure(rows, isGT=false){
               const cN=Math.round(id.c?id.c[1]:0);
               const sT=dd[0]*0.9;
               const nsk=cN>0?Math.ceil(sT*(cN+1)-dd[1]*cN):0;
-              gStr=(nsk>0&&nsk<=100)?`adicionar 1 cliente com ${nsk} SKUs`:`+${gap.toFixed(2)} SKU médio`;
+              gStr=cN>0?`${cN} cli, média ${dd[1].toFixed(1)} → próx. c/ ${nsk} SKU`:`meta: ${sT.toFixed(1)} SKU/cli`;
             }
             gaps.push({i:ind,t:p2,c:Math.round(dd[2]*10)/10,g:gStr,ga:gap});
           }
@@ -2196,7 +2196,7 @@ function showRCA(rca,curr,prev,ranked){
           const gap=isP2&&pct<90&&ocd>0?ocd*0.9-rlz:0;
           const cliN=l==='SKU'?(Math.round(id.c?id.c[1]:0)):0;
           const skuN=l==='SKU'&&cliN>0&&gap>0?Math.ceil(ocd*0.9*(cliN+1)-rlz*cliN):0;
-          const gstr=l==='VND'?`R$${Math.round(gap).toLocaleString('pt-BR')}`:l==='CLI'?`${gap.toFixed(1)} cli`:(skuN>0&&skuN<=100)?`1 cliente c/ ${skuN} SKUs`:`+${gap.toFixed(2)} SKU médio`;
+          const gstr=l==='VND'?`R$${Math.round(gap).toLocaleString('pt-BR')}`:l==='CLI'?`${gap.toFixed(1)} cli`:cliN>0?`${cliN} cli, média ${rlz.toFixed(1)} → próx. c/ ${skuN} SKU`:`meta: ${(ocd*0.9).toFixed(1)} SKU/cli`;
           return`<div class="ind-b" style="${isP2?'background:var(--purple-bg);':''}">
             <div class="ind-b-lbl">${l}${isP2?` ${p2badge(p2)}`:''}</div>
             <div class="ind-b-t"><div class="ind-b-f" style="width:${cap(pct)}%;background:${barBg(pct)}"></div><div class="ind-b-90"></div></div>
