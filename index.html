@@ -2475,9 +2475,12 @@ function _buildRankingViewHtml(curr,ranked){
 
   if(ind){
     // Fornecedor específico: lista completa de ranqueados
-    const all=bySupplier[ind]||[];
+    // A chave de curr.reg pode diferir da chave de bySupplier — normaliza para fazer match
+    const normInd=s=>normalizeInd(s).toLowerCase();
+    const matchedInd=Object.keys(bySupplier).find(k=>normInd(k)===normInd(ind))||ind;
+    const all=bySupplier[matchedInd]||[];
     const leader=all[0];
-    const myReps=teamInSup(ind);
+    const myReps=teamInSup(matchedInd);
     const myFuncs=new Set(myReps.map(r=>r.name.toLowerCase()));
     let h=`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
       <tr style="background:#1E3A5F;color:#fff">
