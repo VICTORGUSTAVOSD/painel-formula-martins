@@ -2335,106 +2335,126 @@ function showRCA(rca,curr,prev,ranked){
 }
 
 // ============ TAB 4: POR FORNECEDOR ============
-let _supFilter='total'; // 'total'|'CLI'|'SKU'|'VND'
-let _lastSupInd=null,_lastSupCurr=null,_lastSupRanked=null;
-function setSupFilter(f){_supFilter=f;if(_lastSupInd&&_lastSupCurr&&_lastSupRanked)showSupplier(_lastSupInd,_lastSupCurr,_lastSupRanked);}
-function renderSupplierTab(curr,prev,ranked){
-  const inds=Object.keys(curr.reg).sort((a,b)=>{
-    const at=curr.reg[a].c[3]+curr.reg[a].s[3]+curr.reg[a].v[3];
-    const bt=curr.reg[b].c[3]+curr.reg[b].s[3]+curr.reg[b].v[3];
-    return bt-at;
-  });
-  let h=`<div class="sh">Selecione o fornecedor</div><div class="pills" id="sup-pills">`;
-  inds.forEach(ind=>{const p2=curr.reg[ind].p2;h+=`<div class="pill" data-ind="${ind}">${ind}${p2?` ${p2badge(p2)}`:''}</div>`;});
-  h+=`</div><div id="sup-detail-area" class="hidden"></div>`;
-  document.getElementById('pg-supplier').innerHTML=h;
-  document.querySelectorAll('#sup-pills .pill').forEach(p=>{
-    p.addEventListener('click',()=>{
-      document.querySelectorAll('#sup-pills .pill').forEach(x=>x.classList.remove('on'));
-      p.classList.add('on');
-      showSupplier(p.dataset.ind,curr,ranked);
-    });
-  });
+let _fState={ind:null,tipo:'VND',ordem:'desc',status:'all',rca:null};
+let _fCurr=null,_fRanked=null;
+function setFState(k,v){
+  _fState[k]=v;
+  if(_fCurr&&_fRanked){
+    document.getElementById('sup-filter-panel').innerHTML=_buildFilterPanelHtml(_fCurr,_fRanked);
+    document.getElementById('sup-filter-results').innerHTML=_buildSupFilterHtml(_fCurr,_fRanked);
+  }
 }
-
-function showSupplier(ind,curr,ranked){
-  _lastSupInd=ind;_lastSupCurr=curr;_lastSupRanked=ranked;
-  const d=curr.reg[ind];if(!d)return;
-  const p2=d.p2;const total=(d.c[3]+d.s[3]+d.v[3]).toFixed(2);
-  let h=`<div class="sh" style="margin-top:14px">Detalhe: ${ind}</div><div class="reg-card">
-    <div class="rc-hd"><div class="rc-name">${ind}${p2?` ${p2badge(p2)}`:''}<span class="badge b-gray">Regional</span></div><div class="rc-pts">${total} pts</div></div>
-    <div class="rc-inds">`;
-  [{k:'c',l:'CLI'},{k:'s',l:'SKU'},{k:'v',l:'VND'}].forEach(({k,l})=>{
-    const isP2=p2===l;const dd=d[k];const pct=dd[2];const ocd=dd[0];const rlz=dd[1];const pts=dd[3];
-    const gap=pct<90&&ocd>0?ocd*0.9-rlz:0;
-    const gstr=l==='VND'?`R$${Math.round(gap).toLocaleString('pt-BR')}`:l==='CLI'?`${gap.toFixed(1)} cli`:`+${gap.toFixed(2)} SKU médio`;
-    h+=`<div class="rc-i" style="${isP2?'background:var(--purple-bg);':''}">
-      <div class="rc-i-lbl">${l}${isP2?` ${p2badge(p2)}`:''}</div>
-      <div class="rc-i-pct" style="color:${pctCol(pct)}">${fmtPct(pct)}</div>
-      <div class="rc-i-bar"><div class="rc-i-f" style="width:${cap(pct)}%;background:${barBg(pct)}"></div><div class="rc-i-90"></div></div>
-      <div class="rc-i-meta"><span>M:${ocd.toFixed(0)}</span><span>R:${rlz.toFixed(0)}</span></div>
-      ${pts>0?`<div style="font-size:11px;font-weight:700;color:var(--green);margin-top:4px">${pts.toFixed(3)}pts</div>`:''}
-      ${gap>0&&isP2?`<div class="rc-i-gap">Falta ${gstr} p/ P2</div>`:''}
-    </div>`;
-  });
-  // Filter bar
-  const _fk=_supFilter==='CLI'?'c':_supFilter==='SKU'?'s':_supFilter==='VND'?'v':null;
-  h+=`</div></div>
-  <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:10px 0 4px">
-    <span style="font-size:11px;color:var(--txt2);font-weight:600">Ordenar por:</span>
-    ${['total','CLI','SKU','VND'].map(f=>`<button class="pill${_supFilter===f?' on':''}" onclick="setSupFilter('${f}')" style="padding:4px 10px;font-size:11px">${f==='total'?'📊 Total':f==='CLI'?'👥 CLI':f==='SKU'?'📦 SKU':'💰 VND'}</button>`).join('')}
-  </div>
-  <div class="sh" style="margin-top:6px">Resultado por RCA${_supFilter!=='total'?` — ${_supFilter} de maior para menor`:''}</div><div class="sc-list">`;
-  [...ranked].sort((a,b)=>{
-    const ar=curr.rcas[a]?.inds[ind];const br=curr.rcas[b]?.inds[ind];
-    if(_fk){return((br?br[_fk][2]:0)-(ar?ar[_fk][2]:0));}
-    const at=ar?(ar.c[3]+ar.s[3]+ar.v[3]):0;
-    const bt=br?(br.c[3]+br.s[3]+br.v[3]):0;
-    return bt-at;
-  }).forEach(rca=>{
-    const rd=curr.rcas[rca]?.inds[ind];if(!rd)return;
-    const total=(rd.c[3]+rd.s[3]+rd.v[3]).toFixed(2);
-    const col=curr.rcas[rca]?.color||'#6B7280';
-    const p2k=p2==='CLI'?'c':p2==='SKU'?'s':'v';
-    const p2dd=rd[p2k]||[0,0,0,0,1];
-    const gap=p2&&p2dd[2]<90&&p2dd[0]>0?p2dd[0]*0.9-p2dd[1]:0;
-    const gstr=p2==='VND'?`R$${Math.round(gap).toLocaleString('pt-BR')}`:p2==='CLI'?`${gap.toFixed(1)} cli`:`+${gap.toFixed(2)} SKU médio`;
-    // Detail line for filtered indicator
-    let detailLine='';
-    if(_fk){
-      const fd=rd[_fk];const fpct=fd[2];const focd=fd[0];const frlz=fd[1];const fgap=focd*0.9-frlz;
-      const rlzF=_supFilter==='VND'?'R$'+Math.round(frlz).toLocaleString('pt-BR'):_supFilter==='CLI'?frlz.toFixed(0)+' cli':frlz.toFixed(1)+' sku';
-      const metaF=_supFilter==='VND'?'R$'+Math.round(focd).toLocaleString('pt-BR'):_supFilter==='CLI'?focd.toFixed(0)+' cli':focd.toFixed(1)+' sku';
-      let gapTxt='';
-      if(fgap>0&&fpct<90){
-        if(_supFilter==='SKU'){const cN=Math.round(rd.c[1]);const sT=focd*0.9;const nsk=cN>0?Math.ceil(sT*(cN+1)-frlz*cN):0;gapTxt=cN>0?`próx. c/ ${nsk} SKU`:`falta ${fgap.toFixed(1)} sku`;}
-        else if(_supFilter==='CLI'){gapTxt=`falta ${Math.ceil(fgap)} cli`;}
-        else{gapTxt=`falta R$${Math.round(fgap).toLocaleString('pt-BR')}`;}
-      }
-      detailLine=`<div style="margin-top:1px">
-        <span style="font-size:12px;font-weight:700;color:var(--txt)">${rlzF}</span>
-        <span style="font-size:10px;color:var(--txt2)"> / M:${metaF}</span>
-        ${gapTxt?`<span style="font-size:10px;color:var(--orange);font-weight:700"> · ${gapTxt}</span>`:''}
-      </div>`;
-    }
-    h+=`<div class="sc-row" style="background:${Number(total)>0?'#F0FDF4':gap>0?'#FFFBEB':''}">
-      <div class="sc-top">
-        <div class="sc-rca" style="color:${col}">${rca}</div>
-        <div class="sc-bars">
-          ${['c','s','v'].map((k,i)=>{const l=['CLI','SKU','VND'][i];const pct=(rd[k]||[0,0,0,0,1])[2];const isActive=_supFilter==='total'||_supFilter===l;return`<div class="sc-b" style="opacity:${isActive?1:0.3}"><div class="sc-b-lbl" style="${isActive&&_supFilter!=='total'?'font-weight:700;color:var(--blue)':''}">${l}</div><div class="sc-b-t"><div class="sc-b-f" style="width:${cap(pct)}%;background:${barBg(pct)}"></div><div class="sc-b-90"></div></div><div class="sc-b-pct" style="color:${pctCol(pct)};${isActive&&_supFilter!=='total'?'font-weight:800;font-size:13px':''}">${fmtPct(pct)}</div></div>`;}).join('')}
-        </div>
-        <div style="text-align:right;min-width:90px">
-          <div class="sc-pts" style="color:${Number(total)>0?'var(--green)':'var(--gray)'}">${Number(total)>0?total:'—'}</div>
-          ${detailLine}
+function _buildFilterPanelHtml(curr,ranked){
+  const inds=Object.keys(curr.reg).sort();
+  return `<div style="margin-bottom:10px">
+      <div style="font-size:11px;color:var(--txt2);font-weight:600;margin-bottom:5px">Fornecedor</div>
+      <div style="display:flex;flex-wrap:wrap;gap:4px">
+        <button class="pill${!_fState.ind?' on':''}" onclick="setFState('ind',null)" style="font-size:11px;padding:4px 9px">Todos</button>
+        ${inds.map(s=>`<button class="pill${_fState.ind===s?' on':''}" onclick="setFState('ind',${JSON.stringify(s)})" style="font-size:11px;padding:4px 9px">${normalizeInd(s)}</button>`).join('')}
+      </div>
+    </div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap">
+      <div>
+        <div style="font-size:11px;color:var(--txt2);font-weight:600;margin-bottom:5px">Indicador</div>
+        <div style="display:flex;gap:4px">
+          ${['CLI','SKU','VND'].map(t=>`<button class="pill${_fState.tipo===t?' on':''}" onclick="setFState('tipo','${t}')" style="font-size:11px;padding:4px 10px">${t==='CLI'?'👥 CLI':t==='SKU'?'📦 SKU':'💰 VND'}</button>`).join('')}
         </div>
       </div>
-      ${gap>0?`<div class="sc-gap">⚡ Falta ${gstr} p/ ${p2} P2</div>`:''}
+      <div>
+        <div style="font-size:11px;color:var(--txt2);font-weight:600;margin-bottom:5px">Ordenar</div>
+        <div style="display:flex;gap:4px">
+          <button class="pill${_fState.ordem==='desc'?' on':''}" onclick="setFState('ordem','desc')" style="font-size:11px;padding:4px 8px">% maior ↓</button>
+          <button class="pill${_fState.ordem==='asc'?' on':''}" onclick="setFState('ordem','asc')" style="font-size:11px;padding:4px 8px">% menor ↑</button>
+          <button class="pill${_fState.ordem==='falta'?' on':''}" onclick="setFState('ordem','falta')" style="font-size:11px;padding:4px 8px">Maior gap</button>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--txt2);font-weight:600;margin-bottom:5px">Status</div>
+        <div style="display:flex;gap:4px">
+          <button class="pill${_fState.status==='all'?' on':''}" onclick="setFState('status','all')" style="font-size:11px;padding:4px 8px">Todos</button>
+          <button class="pill${_fState.status==='below'?' on':''}" onclick="setFState('status','below')" style="font-size:11px;padding:4px 8px">Abaixo da meta</button>
+          <button class="pill${_fState.status==='above'?' on':''}" onclick="setFState('status','above')" style="font-size:11px;padding:4px 8px">Acima da meta</button>
+        </div>
+      </div>
+      <div>
+        <div style="font-size:11px;color:var(--txt2);font-weight:600;margin-bottom:5px">RCA</div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap">
+          <button class="pill${!_fState.rca?' on':''}" onclick="setFState('rca',null)" style="font-size:11px;padding:4px 8px">Todos</button>
+          ${ranked.map(r=>`<button class="pill${_fState.rca===r?' on':''}" onclick="setFState('rca',${JSON.stringify(r)})" style="font-size:11px;padding:4px 8px">${r}</button>`).join('')}
+        </div>
+      </div>
     </div>`;
+}
+function _buildSupFilterHtml(curr,ranked){
+  const{ind,tipo,ordem,status,rca}=_fState;
+  const tk=tipo==='CLI'?'c':tipo==='SKU'?'s':'v';
+  const rows=[];
+  ranked.forEach(r=>{
+    if(rca&&r!==rca)return;
+    Object.entries(curr.rcas[r]?.inds||{}).forEach(([sup,d])=>{
+      if(ind&&sup!==ind)return;
+      const dd=d[tk];if(!dd||dd[0]===0)return;
+      const pct=dd[2];const rlz=dd[1];const meta=dd[0];const pts=dd[3];
+      const gap=meta*0.9-rlz;
+      if(status==='below'&&pct>=90)return;
+      if(status==='above'&&pct<90)return;
+      rows.push({r,sup,d,pct,rlz,meta,pts,gap,col:curr.rcas[r]?.color||'#6B7280'});
+    });
   });
-  h+='</div>';
-  const area=document.getElementById('sup-detail-area');
-  area.innerHTML=h;area.classList.remove('hidden');
-  area.scrollIntoView({behavior:'smooth',block:'nearest'});
+  if(rows.length===0)return`<div class="alert al-y" style="margin-top:8px">Nenhum resultado para os filtros selecionados.</div>`;
+  if(ordem==='desc')rows.sort((a,b)=>b.pct-a.pct);
+  else if(ordem==='asc')rows.sort((a,b)=>a.pct-b.pct);
+  else rows.sort((a,b)=>b.gap-a.gap);
+  const showSup=!ind;
+  const fVal=(v,t)=>t==='VND'?'R$'+Math.round(v).toLocaleString('pt-BR'):t==='CLI'?v.toFixed(0)+' cli':v.toFixed(1)+' sku';
+  const fGap=(gap,tipo,d)=>{
+    if(tipo==='SKU'){const cN=Math.round(d.c?d.c[1]:0);const sT=d.s[0]*0.9;const nsk=cN>0?Math.ceil(sT*(cN+1)-d.s[1]*cN):0;return cN>0?`próx. c/ ${nsk} SKU`:`falta ${gap.toFixed(1)} sku`;}
+    if(tipo==='CLI')return`falta ${Math.ceil(gap)} cli`;
+    return`falta R$${Math.round(gap).toLocaleString('pt-BR')}`;
+  };
+  const TH='padding:8px 10px;font-weight:600;white-space:nowrap;font-size:11px';
+  let h=`<div style="overflow-x:auto"><table style="width:100%;border-collapse:collapse;font-size:12px">
+    <tr style="background:#1E3A5F;color:#fff">
+      <th style="${TH};text-align:left">RCA</th>
+      ${showSup?`<th style="${TH};text-align:left">Fornecedor</th>`:''}
+      <th style="${TH};text-align:center">${tipo}</th>
+      <th style="${TH};text-align:right">Realizado</th>
+      <th style="${TH};text-align:right">Meta</th>
+      <th style="${TH};text-align:right">Falta / Ação</th>
+      <th style="${TH};text-align:right">Pts</th>
+    </tr>`;
+  rows.forEach((row,i)=>{
+    const{r,sup,d,pct,rlz,meta,pts,gap,col}=row;
+    const pc=pctCol(pct);
+    const rlzF=fVal(rlz,tipo);
+    const metaF=fVal(meta,tipo);
+    const gapTxt=gap>0&&pct<90?fGap(gap,tipo,d):'';
+    const bg=pct>=90?'rgba(22,163,74,0.06)':pct>=70?'rgba(234,179,8,0.06)':i%2===0?'transparent':'rgba(0,0,0,0.02)';
+    const TD='padding:7px 10px';
+    h+=`<tr style="background:${bg};border-bottom:1px solid var(--border)">
+      <td style="${TD};font-weight:700;color:${col}">${r}</td>
+      ${showSup?`<td style="${TD};color:var(--txt2);font-size:11px">${normalizeInd(sup)}</td>`:''}
+      <td style="${TD};text-align:center">
+        <div style="font-weight:800;font-size:14px;color:${pc}">${Math.round(pct)}%</div>
+        <div style="height:4px;background:var(--border);border-radius:2px;margin:2px 4px 0"><div style="width:${cap(pct)}%;height:100%;background:${barBg(pct)};border-radius:2px"></div></div>
+      </td>
+      <td style="${TD};text-align:right;font-weight:600">${rlzF}</td>
+      <td style="${TD};text-align:right;color:var(--txt2)">${metaF}</td>
+      <td style="${TD};text-align:right;color:var(--orange);font-weight:600;font-size:11px">${gapTxt}</td>
+      <td style="${TD};text-align:right;font-weight:700;color:${pts>0?'var(--green)':'var(--gray)'}">${pts>0?pts.toFixed(2):'—'}</td>
+    </tr>`;
+  });
+  h+=`</table></div><div style="font-size:11px;color:var(--txt2);margin-top:6px;text-align:right">${rows.length} resultado${rows.length!==1?'s':''}</div>`;
+  return h;
+}
+function renderSupplierTab(curr,prev,ranked){
+  _fCurr=curr;_fRanked=ranked;
+  const h=`<div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 14px;margin-bottom:14px">
+    <div style="font-size:12px;font-weight:700;color:var(--txt);margin-bottom:10px">🔍 Filtros</div>
+    <div id="sup-filter-panel">${_buildFilterPanelHtml(curr,ranked)}</div>
+  </div>
+  <div id="sup-filter-results">${_buildSupFilterHtml(curr,ranked)}</div>`;
+  document.getElementById('pg-supplier').innerHTML=h;
 }
 // ============ UF RANKING PARSE ============
 // Configurable: change this string to match your gestor name in the file
