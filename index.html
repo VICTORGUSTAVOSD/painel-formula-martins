@@ -2016,6 +2016,105 @@ function renderRCATab(curr,prev,ranked){
   });
 }
 
+function _renderWinningOpps(rca){
+  const ufEntry=G.uf?G.uf.myTeam.find(r=>r.name===rca):null;
+  const ufRank=ufEntry?ufEntry.rank:999;
+  const ufPts=ufEntry?ufEntry.pts:0;
+
+  const rcaSrc=G.rcaRank||(G.winners?G.winners.nationalRanking:null);
+  const natEntry=rcaSrc?rcaSrc[rca]:null;
+  const natRank=natEntry?natEntry.rank:999;
+  const natPts=natEntry?natEntry.pts:0;
+
+  // Fornecedor: ordena por quem já está ganhando ou gap menor
+  let supArr=[];
+  if(G.winners&&G.winners.myTeam[rca]){
+    const sups=G.winners.myTeam[rca].suppliers;
+    supArr=Object.entries(sups).map(([ind,{pts,rank}])=>{
+      const leaderPts=((G.winners.bySupplier[ind]||[])[0]||{}).pts||pts;
+      return{ind,pts,rank,gap:leaderPts-pts,leaderPts};
+    }).sort((a,b)=>{
+      if(a.rank===1&&b.rank!==1)return-1;
+      if(b.rank===1&&a.rank!==1)return 1;
+      return a.gap-b.gap;
+    });
+  }
+  const sup=supArr[0]||null;
+
+  function oppCard(title,rankVal,ptsVal,opts={}){
+    const{isSupplier=false,supName='',gap=0}=opts;
+    let bg,border,rankColor,statusLbl,statusColor;
+    if(isSupplier){
+      if(rankVal===1){bg='#022C22';border='#10B981';rankColor='#6EE7B7';statusLbl='🏆 JÁ ESTÁ GANHANDO';statusColor='#6EE7B7';}
+      else if(rankVal<=3){bg='#1C1917';border='#F59E0B';rankColor='#FDE68A';statusLbl='🎖️ NO PÓDIO';statusColor='#FDE68A';}
+      else if(rankVal<=8){bg='#1C1917';border='#3B82F6';rankColor='#93C5FD';statusLbl='⚡ NA BRIGA';statusColor='#93C5FD';}
+      else if(rankVal<999){bg='rgba(255,255,255,.04)';border='rgba(255,255,255,.12)';rankColor='rgba(255,255,255,.4)';statusLbl='';statusColor='rgba(255,255,255,.3)';}
+      else{bg='rgba(255,255,255,.03)';border='rgba(255,255,255,.08)';rankColor='rgba(255,255,255,.25)';statusLbl='— sem dados';statusColor='rgba(255,255,255,.2)';}
+    } else if(title.includes('ESTADO')){
+      if(rankVal===1){bg='#022C22';border='#10B981';rankColor='#6EE7B7';statusLbl='🏆 CAMPEÃO DO ESTADO';statusColor='#6EE7B7';}
+      else if(rankVal<=3){bg='#022C22';border='#34D399';rankColor='#6EE7B7';statusLbl='🎖️ NO PÓDIO';statusColor='#34D399';}
+      else if(rankVal<=10){bg='#1C1917';border='#F59E0B';rankColor='#FDE68A';statusLbl='⚡ NA BRIGA';statusColor='#FDE68A';}
+      else if(rankVal<999){bg='rgba(255,255,255,.04)';border='rgba(255,255,255,.12)';rankColor='rgba(255,255,255,.4)';statusLbl='';statusColor='rgba(255,255,255,.3)';}
+      else{bg='rgba(255,255,255,.03)';border='rgba(255,255,255,.08)';rankColor='rgba(255,255,255,.25)';statusLbl='sem dados';statusColor='rgba(255,255,255,.2)';}
+    } else {
+      // Nacional Top 3
+      if(rankVal<=3){bg='#022C22';border='#10B981';rankColor='#6EE7B7';statusLbl='🏆 JÁ ESTÁ NO TOP 3';statusColor='#6EE7B7';}
+      else if(rankVal<=10){bg='#1C1917';border='#F59E0B';rankColor='#FDE68A';statusLbl='🎯 PRÓXIMO DO TOP 3';statusColor='#FDE68A';}
+      else if(rankVal<=30){bg='#1C1917';border='#3B82F6';rankColor='#93C5FD';statusLbl='⚡ NA BRIGA';statusColor='#93C5FD';}
+      else if(rankVal<999){bg='rgba(255,255,255,.04)';border='rgba(255,255,255,.12)';rankColor='rgba(255,255,255,.4)';statusLbl='';statusColor='rgba(255,255,255,.3)';}
+      else{bg='rgba(255,255,255,.03)';border='rgba(255,255,255,.08)';rankColor='rgba(255,255,255,.25)';statusLbl='sem dados';statusColor='rgba(255,255,255,.2)';}
+    }
+    const rankDisp=rankVal<999?`${rankVal}°`:'—';
+    const ptsDisp=ptsVal>0?`${ptsVal.toFixed(3)} pts acum.`:'sem dados';
+    const gapDisp=isSupplier&&rankVal>1&&gap>0?`<div style="margin-top:6px;font-size:11px;background:rgba(255,255,255,.08);border-radius:5px;padding:4px 7px;color:${statusColor}">Falta <strong>${gap.toFixed(3)}</strong> pts p/ 1°</div>`:'';
+    const supDisp=isSupplier&&supName?`<div style="font-size:10px;color:rgba(255,255,255,.45);margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${normalizeInd(supName)}</div>`:'';
+    return`<div style="background:${bg};border:1.5px solid ${border};border-radius:10px;padding:10px 11px">
+      <div style="font-size:9px;color:rgba(255,255,255,.45);font-weight:700;text-transform:uppercase;letter-spacing:.05em;margin-bottom:3px">${title}</div>
+      <div style="font-size:26px;font-weight:900;color:${rankColor};line-height:1">${rankDisp}</div>
+      ${supDisp}
+      <div style="font-size:10px;color:rgba(255,255,255,.35);margin-top:2px">${ptsDisp}</div>
+      ${gapDisp}
+      ${statusLbl?`<div style="margin-top:7px;font-size:10px;font-weight:800;color:${statusColor};letter-spacing:.03em">${statusLbl}</div>`:''}
+    </div>`;
+  }
+
+  const hasAnyChance=ufRank<=10||natRank<=30||(sup&&sup.rank<=8);
+  const isWinning=ufRank===1||natRank<=3||(sup&&sup.rank===1);
+  const gradBg=isWinning?'linear-gradient(135deg,#064E3B,#065F46)':hasAnyChance?'linear-gradient(135deg,#1C1403,#3B1E00)':'linear-gradient(135deg,#0F172A,#1E293B)';
+
+  let html=`<div style="${gradBg};border-radius:12px;padding:14px;margin-bottom:14px">
+    <div style="font-size:11px;color:rgba(255,255,255,.5);font-weight:700;text-transform:uppercase;letter-spacing:.07em;margin-bottom:10px">
+      ${isWinning?'🏆 OPORTUNIDADES DE GANHAR — JÁ NA BRIGA!':hasAnyChance?'🎯 OPORTUNIDADES DE GANHAR':'📊 Posição atual — metas de ganho'}
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
+      ${oppCard('🏅 1° NO ESTADO',ufRank,ufPts)}
+      ${oppCard('🌎 TOP 3 NACIONAL',natRank,natPts)}
+      ${sup?oppCard('🏭 1° POR FORNECEDOR',sup.rank,sup.pts,{isSupplier:true,supName:sup.ind,gap:sup.gap})
+           :oppCard('🏭 1° POR FORNECEDOR',999,0,{isSupplier:true})}
+    </div>`;
+
+  // Se tem mais de um fornecedor próximo, mostrar os próximos também
+  if(supArr.length>1){
+    const close=supArr.slice(1).filter(s=>s.rank<=10);
+    if(close.length>0){
+      html+=`<div style="margin-top:8px;font-size:10px;color:rgba(255,255,255,.4);margin-bottom:4px;font-weight:700;text-transform:uppercase;letter-spacing:.04em">Outros fornecedores em destaque</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">`;
+      close.forEach(s=>{
+        const bc=s.rank===1?'#10B981':s.rank<=3?'#F59E0B':s.rank<=8?'#3B82F6':'rgba(255,255,255,.2)';
+        const tc=s.rank===1?'#6EE7B7':s.rank<=3?'#FDE68A':s.rank<=8?'#93C5FD':'rgba(255,255,255,.4)';
+        html+=`<div style="background:rgba(255,255,255,.06);border:1px solid ${bc};border-radius:6px;padding:5px 9px;font-size:11px">
+          <span style="color:${tc};font-weight:700">${s.rank}°</span>
+          <span style="color:rgba(255,255,255,.5);margin-left:4px">${normalizeInd(s.ind)}</span>
+          ${s.rank>1?`<span style="color:rgba(255,255,255,.3);font-size:10px;margin-left:4px">falta ${s.gap.toFixed(2)}</span>`:''}
+        </div>`;
+      });
+      html+=`</div>`;
+    }
+  }
+  html+=`</div>`;
+  return html;
+}
+
 function showRCA(rca,curr,prev,ranked){
   const r=curr.rcas[rca];
   const pr=prev?.rcas?.[rca];
@@ -2029,6 +2128,7 @@ function showRCA(rca,curr,prev,ranked){
   const dSign=delta===null?'—':delta>=0?`+${delta.toFixed(2)}`:`${delta.toFixed(2)}`;
 
   let h=`<div class="rca-box">
+    ${_renderWinningOpps(rca)}
     <div class="rca-top">
       <div class="rca-av" style="background:${col}20;color:${col}">${initials}</div>
       <div>
