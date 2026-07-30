@@ -780,6 +780,21 @@ function computePoints(ocd,rlz,peso){
   return Math.min(cob,1.2)*Math.max(1,peso||1);
 }
 
+// SKU e MEDIA por cliente, nao total. O alvo acionavel e quantos SKUs por no PROXIMO
+// cliente:  nsk = teto( meta*(nCli+1) - media*nCli )
+// Quando a media esta muito longe da meta esse numero estoura — chegou a pedir 65 SKUs
+// num unico cliente. Acima de SKU_NEXT_MAX o painel para de dar numero falso e diz o
+// tamanho real do problema, para nao mandar o RCA fazer o impossivel.
+const SKU_NEXT_MAX = 20;
+function skuNext(ocd, rlz, nCli){
+  const alvo = ocd * 0.9;
+  if(!(nCli > 0)) return {ok:false, longe:false, alvo:alvo, txt:'chegar a '+alvo.toFixed(1)+' por cliente'};
+  const nsk = Math.ceil(alvo*(nCli+1) - rlz*nCli);
+  if(nsk > SKU_NEXT_MAX)
+    return {ok:false, longe:true, alvo:alvo, nsk:nsk, txt:'meta distante: média '+rlz.toFixed(1)+' de '+alvo.toFixed(1)};
+  return {ok:true, longe:false, alvo:alvo, nsk:nsk, txt:'próximo cliente com '+nsk+' SKUs'};
+}
+
 function buildData(raw, isGT=false, teamCodes=null){
   // Find header row
   let headerRow=-1;
@@ -902,10 +917,8 @@ function buildStructure(rows, isGT=false){
             if(p2==='VND') gStr=`R$${Math.round(gap).toLocaleString('pt-BR')}`;
             else if(p2==='CLI') gStr=`${gap.toFixed(1)} cli`;
             else{
-              const cN=Math.round(id.c?id.c[1]:0);
-              const sT=dd[0]*0.9;
-              const nsk=cN>0?Math.ceil(sT*(cN+1)-dd[1]*cN):0;
-              gStr=cN>0?`${cN} cli, média ${dd[1].toFixed(1)} → próx. c/ ${nsk} SKU`:`meta: ${sT.toFixed(1)} SKU/cli`;
+              const _s=skuNext(dd[0],dd[1],Math.round(id.c?id.c[1]:0));
+              gStr=_s.ok?`${Math.round(id.c?id.c[1]:0)} cli, média ${dd[1].toFixed(1)} → próx. c/ ${_s.nsk} SKU`:_s.txt;
             }
             gaps.push({i:ind,t:p2,c:Math.round(dd[2]*10)/10,g:gStr,ga:gap});
           }
@@ -998,7 +1011,7 @@ function generateMsg(rca,curr,prev,rankCurr,rankPrev,totalRCAs){
         let actionStr;
         if(l==='VND')actionStr=`vender mais R$${Math.round(gap).toLocaleString('pt-BR')}`;
         else if(l==='CLI')actionStr=`positivar mais ${Math.ceil(gap)} cliente${Math.ceil(gap)!==1?'s':''}`;
-        else{const cN=Math.round(id.c?id.c[1]:0);const sT=dd[0]*0.9;const nsk=cN>0?Math.ceil(sT*(cN+1)-dd[1]*cN):0;actionStr=cN>0?`${cN} cli, média ${dd[1].toFixed(1)} → próx. com ${nsk} SKUs`:`meta: ${sT.toFixed(1)} SKU/cli`;}
+        else{const _cN=Math.round(id.c?id.c[1]:0);const _s=skuNext(dd[0],dd[1],_cN);actionStr=_s.ok?`${_cN} cli, média ${dd[1].toFixed(1)} → próx. com ${_s.nsk} SKUs`:_s.txt;}
         const isP2=(id.p2===l);
         close.push({ind,l,pct:dd[2],actionStr,isP2});
       }
@@ -1059,8 +1072,8 @@ function generateMsg(rca,curr,prev,rankCurr,rankPrev,totalRCAs){
         const _p2=_wk.p2,_d=_p2==='CLI'?_wk.c:_p2==='SKU'?_wk.s:_wk.v;
         const _ocd=_d[0],_rlz=_d[1],_pct=Math.round(_d[2]);
         if(_p2==='SKU'&&_wk.c&&_wk.c[1]>0){
-          const _cN=Math.round(_wk.c[1]),_sT=_ocd*0.9,_nsk=Math.ceil(_sT*(_cN+1)-_rlz*_cN);
-          _supAct=` → Foca na ${normalizeInd(_bInd)}! P2 SKU ${_pct}% (${_cN} cli → próx. c/ ${_nsk} SKU)`;
+          const _cN=Math.round(_wk.c[1]),_s=skuNext(_ocd,_rlz,_cN);
+          _supAct=` → Foca na ${normalizeInd(_bInd)}! P2 SKU ${_pct}% (${_s.ok?_cN+' cli → próx. c/ '+_s.nsk+' SKU':_s.txt})`;
         }else if(_p2==='CLI'&&_ocd*0.9-_rlz>0){
           _supAct=` → Foca na ${normalizeInd(_bInd)}! P2 CLI ${_pct}% (positivar mais ${Math.ceil(_ocd*0.9-_rlz)} cli)`;
         }else if(_p2==='VND'&&_ocd*0.9-_rlz>0){
@@ -1285,10 +1298,10 @@ function shareRCACard(rcaName){
         }else if(gap>0){
           ctx.fillStyle='#EA580C';ctx.font='bold 9px "Segoe UI",Arial,sans-serif';
           if(l==='SKU'){
-            const cN=Math.round(id.c?id.c[1]:0);
-            const nsk=cN>0?Math.ceil(alvo*(cN+1)-rlz*cN):Math.ceil(alvo);
-            if(cN>0){ctx.fillText('próximo cliente',cx+4,y+57);ctx.fillText('com '+nsk+' SKUs',cx+4,y+67);}
-            else{ctx.fillText('chegar a '+alvo.toFixed(1),cx+4,y+57);}
+            const _s=skuNext(ocd,rlz,Math.round(id.c?id.c[1]:0));
+            if(_s.ok){ctx.fillText('próximo cliente',cx+4,y+57);ctx.fillText('com '+_s.nsk+' SKUs',cx+4,y+67);}
+            else if(_s.longe){ctx.fillText('meta distante',cx+4,y+57);ctx.fillText('média '+rlz.toFixed(1)+' de '+_s.alvo.toFixed(1),cx+4,y+67);}
+            else{ctx.fillText('chegar a '+_s.alvo.toFixed(1),cx+4,y+57);}
           }else{
             ctx.fillText('falta '+fmtG(gap),cx+4,y+57);
             if(rlz>0){ctx.fillStyle='#9CA3AF';ctx.font='8.5px "Segoe UI",Arial,sans-serif';ctx.fillText('(chegar a '+fmtG(alvo)+')',cx+4,y+67);}
@@ -1369,11 +1382,10 @@ function _buildRCAListHtml(rcaName,r){
           const gap=alvo-rlz;
           if(gap>0){
             if(l==='SKU'){
-              const cN=Math.round(id.c?id.c[1]:0);
-              const nsk=cN>0?Math.ceil(alvo*(cN+1)-rlz*cN):Math.ceil(alvo);
-              infoHtml+=cN>0
-                ?`<div style="font-size:10px;color:var(--orange);font-weight:600;line-height:1.3">próximo cliente<br>com ${nsk} SKUs</div>`
-                :`<div style="font-size:10px;color:var(--orange);font-weight:600">chegar a ${alvo.toFixed(1)} por cliente</div>`;
+              const _s=skuNext(ocd,rlz,Math.round(id.c?id.c[1]:0));
+              infoHtml+=_s.ok
+                ?`<div style="font-size:10px;color:var(--orange);font-weight:600;line-height:1.3">próximo cliente<br>com ${_s.nsk} SKUs</div>`
+                :`<div style="font-size:10px;color:var(--orange);font-weight:600;line-height:1.3">${_s.txt.replace(': ','<br>')}</div>`;
             }else{
               // com feito=0 o 'chegar a' repetiria o mesmo numero do 'falta'
               const _alvoTxt=rlz>0?`<br><span style="font-weight:400">(chegar a ${_fmtIndGap(alvo,l)})</span>`:'';
@@ -1673,9 +1685,7 @@ function gtOpportunities(){
           const n=Math.ceil(meta-rlz);
           txt='positivar mais '+n+(n!==1?' clientes':' cliente');
         }else{
-          const cN=Math.round(d.c&&d.c[1]?d.c[1]:0);
-          const nsk=cN>0?Math.ceil(meta*(cN+1)-rlz*cN):Math.ceil(meta);
-          txt=cN>0?('próximo cliente com '+nsk+' SKUs'):('meta '+meta.toFixed(1)+' SKU por cliente');
+          txt=skuNext(ocd,rlz,Math.round(d.c&&d.c[1]?d.c[1]:0)).txt;
         }
         actions.push({lbl:lbl,state:'lock',cob:cob,peso:peso,gain:gain,txt:txt});
       });
@@ -2601,7 +2611,7 @@ function _buildSupFilterHtml(curr,ranked){
   const showSup=!ind;
   const fVal=(v,t)=>t==='VND'?'R$'+Math.round(v).toLocaleString('pt-BR'):t==='CLI'?v.toFixed(0)+' cli':v.toFixed(1)+' sku';
   const fGap=(gap,tipo,d)=>{
-    if(tipo==='SKU'){const cN=Math.round(d.c?d.c[1]:0);const sT=d.s[0]*0.9;const nsk=cN>0?Math.ceil(sT*(cN+1)-d.s[1]*cN):0;return cN>0?`próx. c/ ${nsk} SKU`:`falta ${gap.toFixed(1)} sku`;}
+    if(tipo==='SKU'){const _s=skuNext(d.s[0],d.s[1],Math.round(d.c?d.c[1]:0));return _s.ok?`próx. c/ ${_s.nsk} SKU`:_s.txt;}
     if(tipo==='CLI')return`falta ${Math.ceil(gap)} cli`;
     return`falta R$${Math.round(gap).toLocaleString('pt-BR')}`;
   };
