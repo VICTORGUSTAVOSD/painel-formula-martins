@@ -401,9 +401,18 @@ async function goProcessFromSheets(opts={}){
   if(errBox) errBox.style.display='none';
   try{
     const stored=loadStore();
+    // Ranking do estado vem primeiro: e dele que saem os codigos do meu time,
+    // usados para filtrar a parcial (que nao tem coluna Gestor).
+    let rawUf=null;
+    if(!GS_UF_URL.includes('COLE_URL')){
+      if(stat) stat.textContent='🏅 Buscando ranking do estado…';
+      rawUf=await _loadGSRaw(GS_UF_URL);
+    }
+    const teamCodes=extractTeamCodes(rawUf);
     // Carrega parcial dos RCAs
+    if(stat) stat.textContent='📊 Atualizando dados…';
     const rawCurr=await _loadGSRaw(GS_CURR_URL);
-    const newCurr=buildData(rawCurr);
+    const newCurr=buildData(rawCurr, false, teamCodes);
     const newPrev=stored&&stored.curr?stored.curr:null;
     // Carrega parcial do GT (visão regional independente)
     let newGt=null,newPrevGt=null;
@@ -415,9 +424,7 @@ async function goProcessFromSheets(opts={}){
     }
     // Carrega ranking do estado
     let newUf=null,newPrevUf=null;
-    if(!GS_UF_URL.includes('COLE_URL')){
-      if(stat) stat.textContent='🏅 Buscando ranking do estado…';
-      const rawUf=await _loadGSRaw(GS_UF_URL);
+    if(rawUf){
       newUf=buildUFData(rawUf);
       newPrevUf=stored&&stored.uf?stored.uf:null;
     }else if(stored&&stored.uf){
@@ -762,7 +769,7 @@ function computePoints(ocd,rlz,peso){
   return Math.min(cob,1.2)*Math.max(1,peso||1);
 }
 
-function buildData(raw, isGT=false){
+function buildData(raw, isGT=false, teamCodes=null){
   // Find header row
   let headerRow=-1;
   let colMap={};
@@ -795,6 +802,13 @@ function buildData(raw, isGT=false){
     const ind=r[colMap.ind]?String(r[colMap.ind]).trim():lastInd;
     if(func)lastFunc=func;
     if(ind)lastInd=ind;
+    // A parcial pode vir com o Brasil inteiro; mantem so os RCAs do meu time.
+    // Sem isso o painel monta card para milhares de RCAs e, pior, funde homonimos
+    // (o key do RCA e o primeiro nome), somando numeros de gente de outro estado.
+    if(teamCodes&&teamCodes.size&&!isGT){
+      const _m=String(lastFunc).match(/^(\d+)/);
+      if(!_m||!teamCodes.has(_m[1]))continue;
+    }
     const indicador=String(r[colMap.indi]||'').trim().toUpperCase();
     if(!indicador)continue;
     const ocd=parseN(r[colMap.ocd]);
@@ -2633,6 +2647,36 @@ function parseUFRanking(file){
     reader.onerror=()=>reject(new Error('Falha ao ler o arquivo'));
     reader.readAsArrayBuffer(file);
   });
+}
+
+// Descobre os codigos dos RCAs do meu time usando uma planilha que TENHA coluna Gestor
+// (Ranking UF ou Ranking Nacional RCA). A parcial nao tem essa coluna, por isso ela
+// sozinha nao permite saber quem e do time.
+function extractTeamCodes(raw){
+  const codes=new Set();
+  if(!raw||!raw.length)return codes;
+  let hRow=-1,cFunc=-1,cGestor=-1;
+  for(let i=0;i<Math.min(raw.length,8);i++){
+    const r=raw[i].map(c=>String(c).toUpperCase().trim());
+    if(r.some(c=>c.includes('FUNCIONARIO')||c.includes('FUNCION'))){
+      hRow=i;
+      r.forEach((c,j)=>{
+        if(c.includes('FUNC'))cFunc=j;
+        else if(c.includes('GESTOR'))cGestor=j;
+      });
+      break;
+    }
+  }
+  if(hRow<0||cFunc<0||cGestor<0)return codes;
+  for(let i=hRow+1;i<raw.length;i++){
+    const r=raw[i];
+    if(!r)continue;
+    const gestor=String(r[cGestor]||'').trim().toUpperCase();
+    if(!gestor.includes(MY_GESTOR_KEY))continue;
+    const m=String(r[cFunc]||'').trim().match(/^(\d+)/);
+    if(m)codes.add(m[1]);
+  }
+  return codes;
 }
 
 function buildUFData(raw){
