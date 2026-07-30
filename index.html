@@ -341,6 +341,9 @@ const G = {curr:null, prev:null, uf:null, prevUf:null, gt:null, prevGt:null, win
 
 // ============ PERSISTÊNCIA (localStorage + Supabase sync) ============
 const STORE_KEY = 'painel_formula_martins_v1';
+// Subir sempre que a logica de calculo mudar: o cache gravado pela versao antiga
+// e descartado, senao o painel mostra numero velho ate a busca de fundo terminar.
+const STORE_VERSION = 2;
 
 // ── Configuração Google Sheets ────────────────────────────────────────────
 // Publique cada aba como CSV: Arquivo → Compartilhar → Publicar na web → CSV
@@ -534,6 +537,7 @@ async function syncFromCloud(){
 function saveStore(){
   try{
     const payload={
+      v:STORE_VERSION,
       curr:G.curr, prev:G.prev, uf:G.uf,
       prevUf:G.prevUf||null,
       gt:G.gt||null, prevGt:G.prevGt||null,
@@ -556,6 +560,11 @@ function loadStore(){
     if(!raw) return null;
     const data=JSON.parse(raw);
     if(!data||!data.curr) return null;
+    if(data.v!==STORE_VERSION){
+      // cache calculado por uma versao anterior do codigo — joga fora
+      try{ localStorage.removeItem(STORE_KEY); }catch(e){}
+      return null;
+    }
     return data;
   }catch(err){
     console.error('Falha ao ler dados salvos:',err);
