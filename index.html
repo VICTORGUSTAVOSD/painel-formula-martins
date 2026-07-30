@@ -382,7 +382,10 @@ function _parseCSVRaw(text){
   return rows;
 }
 async function _loadGSRaw(url){
-  const r=await fetch(url);
+  // Cache-buster: sem isso o navegador entrega a copia antiga da planilha
+  // e o painel mostra dados de semanas atras mesmo com o arquivo novo no Drive
+  const _bust=(url.includes('?')?'&':'?')+'_cb='+Date.now();
+  const r=await fetch(url+_bust,{cache:'no-store'});
   if(!r.ok) throw new Error(`Planilha inacessível (${r.status}). Verifique se está publicada como pública.`);
   const csv=await r.text();
   return _parseCSVRaw(csv);
