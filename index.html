@@ -354,6 +354,7 @@ const GS_RCA_RANK_URL= 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTP3GrrE
 const GS_CONFIGURED  = !GS_CURR_URL.includes('COLE_URL');
 const GT_ACUMULADO_PTS  = 53.533; // fallback — sobrescrito pelo GS_GT_RANK_URL ao carregar
 const GT_RANK_REGIONAL  = 32;     // fallback — sobrescrito pelo GS_GT_RANK_URL ao carregar
+const MY_GT_CODE = '77682';       // meu codigo de GT: a parcial do GT vem com todos, filtra o meu
 
 function _parseCSVRaw(text){
   const rows=[];
@@ -419,7 +420,7 @@ async function goProcessFromSheets(opts={}){
     if(!GS_GT_URL.includes('COLE_URL')){
       if(stat) stat.textContent='📊 Carregando parcial GT…';
       const rawGt=await _loadGSRaw(GS_GT_URL);
-      newGt=buildData(rawGt, true);
+      newGt=buildData(rawGt, true, new Set([MY_GT_CODE]));
       newPrevGt=stored&&stored.gt?stored.gt:null;
     }
     // Carrega ranking do estado
@@ -805,7 +806,7 @@ function buildData(raw, isGT=false, teamCodes=null){
     // A parcial pode vir com o Brasil inteiro; mantem so os RCAs do meu time.
     // Sem isso o painel monta card para milhares de RCAs e, pior, funde homonimos
     // (o key do RCA e o primeiro nome), somando numeros de gente de outro estado.
-    if(teamCodes&&teamCodes.size&&!isGT){
+    if(teamCodes&&teamCodes.size){
       const _m=String(lastFunc).match(/^(\d+)/);
       if(!_m||!teamCodes.has(_m[1]))continue;
     }
@@ -1595,6 +1596,111 @@ function buildRCARankData(raw){
   return result;
 }
 
+// ── Onde da para tomar a frente ──
+// Cruza a colocacao acumulada (planilha Ganhadores) com a parcial do mes (planilha GT)
+// para dizer, por fornecedor, o que falta fazer e quanto isso rende em ponto.
+function gtOpportunities(){
+  if(!G.winners||!G.winners.victorGT||!G.gt||!G.gt.reg)return[];
+  const vgt=G.winners.victorGT;
+  const regByLabel={};
+  Object.entries(G.gt.reg).forEach(([k,d])=>{regByLabel[normalizeInd(k)]=d;});
+  const out=[];
+  Object.entries(vgt).forEach(([indRaw,info])=>{
+    const label=normalizeInd(indRaw);
+    const d=regByLabel[label];
+    const list=G.winners.bySupplier[indRaw]||[];
+    // GT imediatamente acima no acumulado
+    const above=list.filter(x=>x.rank<info.rank).sort((a,b)=>b.rank-a.rank)[0]||null;
+    const gapAbove=above?Math.max(0,above.pts-info.pts):0;
+    const actions=[];
+    let unlockable=0;
+    if(d){
+      [['CLI','c'],['SKU','s'],['VND','v']].forEach(pair=>{
+        const lbl=pair[0],k=pair[1];
+        const dd=d[k];
+        if(!dd||!dd[0])return;
+        const ocd=dd[0],rlz=dd[1],cob=dd[2],cur=dd[3],peso=dd[4]||1;
+        if(cob>=90){
+          actions.push({lbl:lbl,state:'ok',cob:cob,cur:cur,peso:peso});
+          return;
+        }
+        const meta=ocd*0.9;
+        const gain=0.9*peso; // ponto que entra ao cruzar os 90%
+        unlockable+=gain;
+        let txt;
+        if(lbl==='VND'){
+          txt='vender mais R$'+Math.round(meta-rlz).toLocaleString('pt-BR');
+        }else if(lbl==='CLI'){
+          const n=Math.ceil(meta-rlz);
+          txt='positivar mais '+n+(n!==1?' clientes':' cliente');
+        }else{
+          const cN=Math.round(d.c&&d.c[1]?d.c[1]:0);
+          const nsk=cN>0?Math.ceil(meta*(cN+1)-rlz*cN):Math.ceil(meta);
+          txt=cN>0?('próximo cliente com '+nsk+' SKUs'):('meta '+meta.toFixed(1)+' SKU por cliente');
+        }
+        actions.push({lbl:lbl,state:'lock',cob:cob,peso:peso,gain:gain,txt:txt});
+      });
+    }
+    const posGain=unlockable>0?list.filter(x=>x.rank<info.rank&&x.pts<=info.pts+unlockable).length:0;
+    out.push({label:label,rank:info.rank,pts:info.pts,total:list.length,
+      gapAbove:gapAbove,above:above,actions:actions,unlockable:unlockable,posGain:posGain});
+  });
+  out.sort((a,b)=>a.rank-b.rank);
+  return out;
+}
+
+function renderGTOpportunities(){
+  const ops=gtOpportunities();
+  if(!ops.length)return'';
+  let h='<div class="sh">🎯 Onde dá para tomar a frente</div>';
+  h+='<div style="font-size:11px;color:var(--txt2);margin:-4px 0 10px">Ordenado pela sua melhor colocação. O ponto só entra a partir de 90% — abaixo disso é zero.</div>';
+  h+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:10px;margin-bottom:16px">';
+  ops.forEach(o=>{
+    const bc=o.rank===1?'var(--green)':o.rank<=3?'var(--orange)':o.rank<=10?'var(--blue)':'var(--border)';
+    const rl=o.rank===1?'🏆 1°':o.rank<=3?'🔥 '+o.rank+'°':o.rank<=10?'⚡ '+o.rank+'°':o.rank+'°';
+    h+='<div style="background:var(--card);border:1.5px solid '+bc+';border-radius:10px;padding:11px 12px">';
+    h+='<div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">'
+      +'<div style="font-size:13px;font-weight:700">'+o.label+'</div>'
+      +'<div style="font-size:16px;font-weight:800;color:'+bc+'">'+rl+'</div></div>';
+    h+='<div style="font-size:10px;color:var(--txt2);margin-top:1px">'+o.pts.toFixed(3)+' pts acum.'+(o.total>0?' · de '+o.total+' GTs':'')+'</div>';
+    // alvo imediato
+    if(o.rank===1){
+      h+='<div style="font-size:11px;color:var(--green);font-weight:600;margin-top:6px">🏆 Você está na frente — segure a posição</div>';
+    }else if(o.above){
+      const alvo=o.gapAbove<=0
+        ?'Empatado com o <strong>'+o.above.rank+'°</strong> — qualquer ponto passa à frente'
+        :'Para passar o <strong>'+o.above.rank+'°</strong>: falta <strong>'+o.gapAbove.toFixed(3)+' pt</strong>';
+      h+='<div style="font-size:11px;margin-top:6px;padding:5px 7px;background:var(--bg);border-radius:6px">'+alvo+'</div>';
+    }
+    // acoes
+    if(o.actions.length){
+      h+='<div style="margin-top:7px;display:flex;flex-direction:column;gap:4px">';
+      o.actions.forEach(a=>{
+        if(a.state==='ok'){
+          h+='<div style="font-size:11px;color:var(--txt2)">✅ <strong>'+a.lbl+'</strong> '+a.cob.toFixed(0)+'% — já pontuando ('+a.cur.toFixed(2)+' pt)</div>';
+        }else{
+          h+='<div style="font-size:11px;line-height:1.35">🔓 <strong>'+a.lbl+'</strong> '
+            +'<span style="color:var(--txt2)">'+a.cob.toFixed(0)+'%</span> — '+a.txt
+            +' <strong style="color:var(--green)">+'+a.gain.toFixed(2)+' pt</strong>'
+            +(a.peso===2?' <span style="font-size:9px;background:#FEF3C7;color:#B45309;padding:1px 4px;border-radius:3px;font-weight:700">PESO 2</span>':'')
+            +'</div>';
+        }
+      });
+      h+='</div>';
+    }
+    // resumo
+    if(o.unlockable>0){
+      h+='<div style="margin-top:8px;padding-top:7px;border-top:1px dashed var(--border);font-size:11px">'
+        +'Destravando tudo: <strong style="color:var(--green)">+'+o.unlockable.toFixed(2)+' pt</strong>'
+        +(o.posGain>0?' → passa <strong>'+o.posGain+'</strong> GT'+(o.posGain!==1?'s':'')+' <span style="color:var(--txt2)">(ranking de hoje)</span>':'')
+        +'</div>';
+    }
+    h+='</div>';
+  });
+  h+='</div>';
+  return h;
+}
+
 // ============ TAB GT VICTOR ============
 function renderGTVictor(){
   const area=document.getElementById('pg-regional');
@@ -1646,6 +1752,8 @@ function renderGTVictor(){
       h+=`</div>`;
     }
   }
+
+  h+=renderGTOpportunities();
 
   if(G.gt){
     const reg=G.gt.reg;
