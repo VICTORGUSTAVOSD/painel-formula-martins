@@ -993,7 +993,7 @@ function generateMsg(rca,curr,prev,rankCurr,rankPrev,totalRCAs){
   Object.entries(curr.inds||{}).forEach(([ind,id])=>{
     ['c','s','v'].forEach((k,ki)=>{
       const l=['CLI','SKU','VND'][ki];const dd=id[k];
-      if(dd[0]>0&&dd[2]>=70&&dd[2]<90){
+      if(dd[0]>0&&dd[2]<90){ // sem piso de 70%: o quadro mostra todos, a mensagem tem que bater
         const gap=dd[0]*0.9-dd[1];
         let actionStr;
         if(l==='VND')actionStr=`vender mais R$${Math.round(gap).toLocaleString('pt-BR')}`;
@@ -1006,11 +1006,12 @@ function generateMsg(rca,curr,prev,rankCurr,rankPrev,totalRCAs){
   });
   close.sort((a,b)=>b.pct-a.pct);
   if(close.length>0){
-    lines.push('🎯 *Foco desta semana — mais perto de bater:*');
+    lines.push('🎯 *Mais perto de pontuar:*');
     close.slice(0,3).forEach(c=>{
-      const p2Txt=c.isP2?' ⚡ *P2!*':'';
+      const p2Txt=c.isP2?' ⚡ *vale 2x!*':'';
       lines.push(`• ${c.ind} ${c.l} — ${Math.round(c.pct)}% → ${c.actionStr}${p2Txt}`);
     });
+    if(close.length>3) lines.push(`_(+${close.length-3} indicadores ainda abaixo de 90% — veja o quadro completo)_`);
     lines.push('');
   }
 
@@ -1310,24 +1311,24 @@ function shareRCACard(rcaName){
 function _fmtIndVal(v,tipo){
   if(tipo==='VND')return'R$'+Math.round(v).toLocaleString('pt-BR');
   if(tipo==='CLI')return v.toFixed(0)+' cli';
-  return v.toFixed(1)+' sku médio';
+  return v.toFixed(1); // unidade vai no cabecalho da coluna, nao repete na celula
 }
 function _fmtIndGap(v,tipo){
   if(tipo==='VND')return'R$'+Math.round(v).toLocaleString('pt-BR');
   if(tipo==='CLI')return Math.ceil(v)+' cli';
-  return v.toFixed(1)+' sku médio';
+  return v.toFixed(1);
 }
 
 function _buildRCAListHtml(rcaName,r){
   const inds=Object.entries(r.inds).sort((a,b)=>{const at=a[1].c[3]+a[1].s[3]+a[1].v[3],bt=b[1].c[3]+b[1].s[3]+b[1].v[3];return bt-at;});
-  let h=`<div style="overflow-x:auto;margin-bottom:8px">
-  <table style="width:100%;border-collapse:collapse;font-size:11px;min-width:480px">
+  let h=`<div style="overflow-x:auto;margin-bottom:4px">
+  <table style="width:100%;border-collapse:collapse;font-size:11px;min-width:660px">
     <tr style="background:#1E3A5F;color:#fff">
       <th style="padding:7px 10px;text-align:left;font-weight:600">Fornecedor</th>
-      <th style="padding:7px 6px;text-align:center;font-weight:600;width:40px">P2</th>
-      <th style="padding:7px 8px;text-align:center;font-weight:600;width:115px">CLI</th>
-      <th style="padding:7px 8px;text-align:center;font-weight:600;width:115px">SKU</th>
-      <th style="padding:7px 8px;text-align:center;font-weight:600;width:115px">VND</th>
+      <th style="padding:7px 6px;text-align:center;font-weight:600;width:52px">Vale 2x</th>
+      <th style="padding:7px 8px;text-align:center;font-weight:600;width:150px">Clientes</th>
+      <th style="padding:7px 8px;text-align:center;font-weight:600;width:150px">SKU <span style="font-weight:400;opacity:.75">(média/cliente)</span></th>
+      <th style="padding:7px 8px;text-align:center;font-weight:600;width:150px">Vendas</th>
       <th style="padding:7px 10px;text-align:right;font-weight:600;width:55px">Pts</th>
     </tr>`;
   inds.forEach(([ind,id],i)=>{
@@ -1336,40 +1337,54 @@ function _buildRCAListHtml(rcaName,r){
     const rowBg=total>0?'#F0FDF4':i%2===0?'#fff':'#F9FAFB';
     h+=`<tr style="background:${rowBg}">
       <td style="padding:7px 10px;font-weight:${total>0?'600':'400'}">${ind}</td>
-      <td style="padding:5px 6px;text-align:center">${p2?p2badge(p2):''}</td>`;
+      <td style="padding:5px 6px;text-align:center">${p2?`<span class="badge ${p2==='SKU'?'b-sku':p2==='VND'?'b-vnd':'b-cli'}">${p2==='CLI'?'Clientes':p2==='VND'?'Vendas':'SKU'}</span>`:''}</td>`;
     ['c','s','v'].forEach((k,ki)=>{
-      const l=['CLI','SKU','VND'][ki];const dd=id[k];const pct=dd[2];const ocd=dd[0];const rlz=dd[1];const pts=dd[3];
+      const l=['CLI','SKU','VND'][ki];const dd=id[k];
+      const pct=dd[2],ocd=dd[0],rlz=dd[1],pts=dd[3];
       const isP2=p2===l;const cellBg=isP2?(pct>=90?'#EDE9FE':pct>=70?'#FFFBEB':'#FFF7ED'):'';
-      // Build info line: realizado / meta + falta
       let infoHtml='';
       if(ocd>0){
-        const rlzFmt=_fmtIndVal(rlz,l);
-        const metaFmt=_fmtIndVal(ocd,l);
+        // "meta" = orcado (base do %); o ponto entra a partir de 90% dela
+        const alvo=ocd*0.9;                 // o numero que realmente precisa alcancar
+        const feito=_fmtIndVal(rlz,l), meta=_fmtIndVal(ocd,l);
+        infoHtml=`<div style="font-size:10px;color:var(--txt)">feito <strong>${feito}</strong></div>`
+                +`<div style="font-size:10px;color:var(--txt2)">meta ${meta}</div>`;
         if(pct>=90){
-          infoHtml=`<div style="font-size:9px;color:var(--txt2)">${rlzFmt} / M:${metaFmt}</div>`;
+          infoHtml+=`<div style="font-size:10px;font-weight:700;color:var(--green)">✓ ${pts.toFixed(2)} pt</div>`;
         }else{
-          const gap=ocd*0.9-rlz;
-          let gapLine='';
+          const gap=alvo-rlz;
           if(gap>0){
-            if(l==='SKU'){const cN=Math.round(id.c?id.c[1]:0);const sT=ocd*0.9;const nsk=cN>0?Math.ceil(sT*(cN+1)-rlz*cN):0;gapLine=cN>0?`próx. c/ ${nsk} SKU`:`meta: ${sT.toFixed(1)} SKU/cli`;}
-            else{gapLine=`falta ${_fmtIndGap(gap,l)}`;}
+            if(l==='SKU'){
+              const cN=Math.round(id.c?id.c[1]:0);
+              const nsk=cN>0?Math.ceil(alvo*(cN+1)-rlz*cN):Math.ceil(alvo);
+              infoHtml+=cN>0
+                ?`<div style="font-size:10px;color:var(--orange);font-weight:600;line-height:1.3">próximo cliente<br>com ${nsk} SKUs</div>`
+                :`<div style="font-size:10px;color:var(--orange);font-weight:600">chegar a ${alvo.toFixed(1)} por cliente</div>`;
+            }else{
+              // com feito=0 o 'chegar a' repetiria o mesmo numero do 'falta'
+              const _alvoTxt=rlz>0?`<br><span style="font-weight:400">(chegar a ${_fmtIndGap(alvo,l)})</span>`:'';
+              infoHtml+=`<div style="font-size:10px;color:var(--orange);font-weight:600;line-height:1.3">falta ${_fmtIndGap(gap,l)}${_alvoTxt}</div>`;
+            }
           }
-          infoHtml=`<div style="font-size:9px;color:var(--txt2)">${rlzFmt} / M:${metaFmt}</div>`
-                  +(gapLine?`<div style="font-size:9px;color:var(--orange);font-weight:600">${gapLine}</div>`:'');
         }
       }else{
-        infoHtml=`<div style="font-size:9px;color:#9CA3AF">—</div>`;
+        infoHtml=`<div style="font-size:10px;color:#9CA3AF">sem meta</div>`;
       }
       h+=`<td style="padding:5px 8px;text-align:center;background:${cellBg}">
-        <div style="font-weight:700;font-size:12px;color:${pctCol(pct)}">${pct>0?Math.round(pct)+'%':'—'}</div>
+        <div style="font-weight:700;font-size:13px;color:${pctCol(pct)}">${pct>0?Math.round(pct)+'%':'0%'}</div>
         <div style="height:4px;background:#EEF0F3;border-radius:2px;margin:2px 0"><div style="width:${cap(pct)}%;height:100%;background:${barBg(pct)};border-radius:2px"></div></div>
         ${infoHtml}
-        ${pts>0?`<div style="font-size:9px;font-weight:700;color:var(--green)">${pts.toFixed(2)}pt</div>`:''}
       </td>`;
     });
-    h+=`<td style="padding:7px 10px;text-align:right;font-weight:700;color:${total>0?'var(--green)':'var(--gray)'}">${total>0?total.toFixed(2):'—'}</td></tr>`;
+    h+=`<td style="padding:7px 10px;text-align:right;font-weight:700;color:${total>0?'var(--green)':'var(--gray)'}">${total>0?total.toFixed(2):'0'}</td></tr>`;
   });
   h+=`</table></div>`;
+  h+=`<div style="font-size:10px;color:var(--txt2);line-height:1.6;margin-bottom:10px;padding:8px 10px;background:var(--bg);border-radius:7px">
+    <strong>Como ler:</strong> a % é o quanto já fez da meta.
+    <strong>O ponto só começa a valer a partir de 90% da meta</strong> — abaixo disso é zero, por isso o "falta" mostra quanto precisa para chegar nos 90%. Acima de 120% não rende mais.<br>
+    <strong>Vale 2x:</strong> em cada fornecedor um indicador vale peso dobrado — é onde o mesmo esforço rende mais ponto.<br>
+    <strong>SKU é média por cliente</strong>, não total. Colocar item num cliente que já compra muito pode até baixar a média — por isso o alvo é quantos SKUs pôr no <em>próximo</em> cliente.
+  </div>`;
   return h;
 }
 
