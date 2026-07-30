@@ -344,7 +344,7 @@ const G = {curr:null, prev:null, uf:null, prevUf:null, gt:null, prevGt:null, win
 const STORE_KEY = 'painel_formula_martins_v1';
 // Subir sempre que a logica de calculo mudar: o cache gravado pela versao antiga
 // e descartado, senao o painel mostra numero velho ate a busca de fundo terminar.
-const STORE_VERSION = 2;
+const STORE_VERSION = 3;
 
 // ── Configuração Google Sheets ────────────────────────────────────────────
 // Publique cada aba como CSV: Arquivo → Compartilhar → Publicar na web → CSV
@@ -959,8 +959,8 @@ function generateMsg(rca,curr,prev,rankCurr,rankPrev,totalRCAs){
   const lines=[];
 
   // State rank
-  const stateInfo=G.uf?G.uf.myTeam.find(m=>m.name.toLowerCase()===rca.toLowerCase()):null;
-  const prevStateInfo=G.prevUf&&stateInfo?G.prevUf.myTeam.find(m=>m.name.toLowerCase()===stateInfo.name.toLowerCase()):null;
+  const stateInfo=G.uf?G.uf.myTeam.find(m=>m.key===rca):null;
+  const prevStateInfo=G.prevUf&&stateInfo?G.prevUf.myTeam.find(m=>m.key&&m.key===stateInfo.key):null;
   const stateMoved=stateInfo&&prevStateInfo?prevStateInfo.rank-stateInfo.rank:null;
 
   // ── Abertura ──
@@ -1073,7 +1073,7 @@ function generateMsg(rca,curr,prev,rankCurr,rankPrev,totalRCAs){
   }
   if(_crit.length>0){
     _crit.sort((a,b)=>b.score-a.score);
-    lines.push('🏆 *Suas 3 chances de ganhar:*');
+    lines.push(_crit.length===1?'🏆 *Sua chance de ganhar:*':'🏆 *Suas '+_crit.length+' chances de ganhar:*');
     _crit.forEach(c=>lines.push(`• ${c.lbl}`));
     lines.push('');
   }
@@ -2093,7 +2093,7 @@ function renderGoals(){
   const _rcaRankSrc=G.rcaRank||(G.winners?G.winners.nationalRanking:null);
 
   ranked.forEach(rca=>{
-    const ufEntry=G.uf?G.uf.myTeam.find(r=>r.name===rca):null;
+    const ufEntry=G.uf?G.uf.myTeam.find(r=>r.key===rca):null;
     const ufRank=ufEntry?ufEntry.rank:999;
     const natEntry=_rcaRankSrc?_rcaRankSrc[rca]:null;
     const natRank=natEntry?natEntry.rank:999;
@@ -2302,7 +2302,7 @@ function renderRCATab(curr,prev,ranked){
 }
 
 function _renderWinningOpps(rca){
-  const ufEntry=G.uf?G.uf.myTeam.find(r=>r.name===rca):null;
+  const ufEntry=G.uf?G.uf.myTeam.find(r=>r.key===rca):null;
   const ufRank=ufEntry?ufEntry.rank:999;
   const ufPts=ufEntry?ufEntry.pts:0;
 
@@ -2883,10 +2883,16 @@ function buildUFData(raw){
     else if(nu.includes('JOAO')&&nu.includes('RIBEIRO')&&nu.includes('NETO'))shortName='João';
     else if(nu.includes('MANOEL')&&nu.includes('AQUINO'))shortName='Manoel';
     else if(nu.includes('THIAGO')&&nu.includes('NUNES'))shortName='Thiago';
-    else if(parts.length>=2)shortName=parts[0].charAt(0)+parts[0].slice(1).toLowerCase()+' '+parts[1].charAt(0)+parts[1].slice(1).toLowerCase();
+    else if(parts.length>=2){
+      const cap=w=>w.charAt(0)+w.slice(1).toLowerCase();
+      const PART=['DA','DE','DO','DAS','DOS','E'];
+      const seg=parts.slice(1).find(w=>w&&!PART.includes(w)); // pula "da", "de", "dos"
+      shortName=cap(parts[0])+(seg?' '+cap(seg):'');
+    }
 
     const gestorShort=gestor.trim().split(' ')[0];
-    rows.push({rank,name:shortName,fullName:namePart.slice(0,30),gestor,gestorShort,uf,pts,isMine});
+    // key = mesma normalizacao da parcial, para casar entre as duas bases
+    rows.push({key:normalizeRCA(funcFull),rank,name:shortName,fullName:namePart.slice(0,30),gestor,gestorShort,uf,pts,isMine});
   }
 
   // Planilha pode vir com todos os estados; mantem so o MY_UF_KEY e reordena por pontos
