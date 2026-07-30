@@ -1215,7 +1215,7 @@ function shareRCACard(rcaName){
   if(!G.curr||!G.curr.rcas[rcaName])return;
   const r=G.curr.rcas[rcaName];
   const inds=Object.entries(r.inds).sort((a,b)=>{const at=a[1].c[3]+a[1].s[3]+a[1].v[3],bt=b[1].c[3]+b[1].s[3]+b[1].v[3];return bt-at;});
-  const W=700,HDR_H=82,THDR=28,ROW_H=56,FTR_H=28,PAD=16;
+  const W=760,HDR_H=82,THDR=28,ROW_H=70,FTR_H=44,PAD=16;
   const H=HDR_H+THDR+inds.length*ROW_H+FTR_H;
   const cv=document.createElement('canvas');cv.width=W*2;cv.height=H*2;
   const ctx=cv.getContext('2d');ctx.scale(2,2);
@@ -1223,19 +1223,19 @@ function shareRCACard(rcaName){
   const g=ctx.createLinearGradient(0,0,W,0);g.addColorStop(0,'#0F172A');g.addColorStop(1,'#1E3A5F');
   ctx.fillStyle=g;ctx.fillRect(0,0,W,HDR_H);
   ctx.fillStyle='#fff';ctx.font='bold 15px "Segoe UI",Arial,sans-serif';
-  ctx.fillText('Formula Martins — Parcial do RCA',PAD,26);
+  ctx.fillText('Fórmula Martins — Parcial do RCA',PAD,26);
   ctx.font='bold 13px "Segoe UI",Arial,sans-serif';ctx.fillStyle='rgba(255,255,255,.9)';
   ctx.fillText(rcaName+' · '+r.total.toFixed(2)+' pts · '+r.batidas+' batidas',PAD,46);
   ctx.font='11px "Segoe UI",Arial,sans-serif';ctx.fillStyle='rgba(255,255,255,.52)';
-  ctx.fillText('Regional MA · Campanha Formula Martins · '+fmtUpdatedAt(G.updatedAt||new Date().toISOString()),PAD,64);
+  ctx.fillText('Regional MA · Campanha Fórmula Martins · '+fmtUpdatedAt(G.updatedAt||new Date().toISOString()),PAD,64);
   // Table header
   ctx.fillStyle='#1E3A5F';ctx.fillRect(0,HDR_H,W,THDR);
   ctx.fillStyle='rgba(255,255,255,.82)';ctx.font='bold 10px "Segoe UI",Arial,sans-serif';
-  const cols=[{l:'FORNECEDOR',x:PAD,a:'left'},{l:'P2',x:195,a:'center'},{l:'CLI',x:255,a:'center'},
-    {l:'SKU',x:375,a:'center'},{l:'VND',x:490,a:'center'},{l:'PTS',x:W-PAD,a:'right'}];
+  const cols=[{l:'FORNECEDOR',x:PAD,a:'left'},{l:'VALE 2x',x:218,a:'center'},{l:'CLIENTES',x:315,a:'center'},
+    {l:'SKU (MÉDIA/CLIENTE)',x:437,a:'center'},{l:'VENDAS',x:597,a:'center'},{l:'PTS',x:W-PAD,a:'right'}];
   cols.forEach(c=>{ctx.textAlign=c.a;ctx.fillText(c.l,c.x,HDR_H+19);});ctx.textAlign='left';
   // Rows — [cx, key, label, barWidth]
-  const _IND_COLS=[[255,'c','CLI',108],[375,'s','SKU',103],[490,'v','VND',183]];
+  const _IND_COLS=[[258,'c','CLI',115],[380,'s','SKU',115],[500,'v','VND',195]];
   inds.forEach(([ind,id],i)=>{
     const y=HDR_H+THDR+i*ROW_H;
     const total=id.c[3]+id.s[3]+id.v[3];
@@ -1246,14 +1246,14 @@ function shareRCACard(rcaName){
     ctx.fillText(ind.slice(0,22),PAD,y+18);
     // Total pts (right)
     ctx.fillStyle=total>0?'#16A34A':'#9CA3AF';ctx.font='bold 13px "Segoe UI",Arial,sans-serif';
-    ctx.textAlign='right';ctx.fillText(total>0?total.toFixed(2):'—',W-PAD,y+20);ctx.textAlign='left';
+    ctx.textAlign='right';ctx.fillText(total>0?total.toFixed(2):'0',W-PAD,y+20);ctx.textAlign='left';
     // P2 badge
     if(p2){
       const p2Bg=p2==='CLI'?'#DBEAFE':p2==='SKU'?'#EDE9FE':'#DCFCE7';
       const p2C=p2==='CLI'?'#1D4ED8':p2==='SKU'?'#7C3AED':'#15803D';
-      ctx.fillStyle=p2Bg;_roundRect(ctx,190,y+6,44,16,4);ctx.fill();
+      ctx.fillStyle=p2Bg;_roundRect(ctx,190,y+6,56,16,4);ctx.fill();
       ctx.fillStyle=p2C;ctx.font='bold 9px "Segoe UI",Arial,sans-serif';
-      ctx.textAlign='center';ctx.fillText('P2-'+p2,212,y+17);ctx.textAlign='left';
+      ctx.textAlign='center';ctx.fillText(p2==='CLI'?'Clientes':p2==='VND'?'Vendas':'SKU',218,y+17);ctx.textAlign='left';
     }
     // Indicators
     _IND_COLS.forEach(([cx,k,l,bw])=>{
@@ -1261,28 +1261,40 @@ function shareRCACard(rcaName){
       const pc=pct>=90?'#16A34A':pct>=70?'#CA8A04':pct>0?'#EA580C':'#9CA3AF';
       // % large
       ctx.fillStyle=pct>0?pc:'#9CA3AF';ctx.font='bold 13px "Segoe UI",Arial,sans-serif';
-      ctx.textAlign='center';ctx.fillText(pct>0?Math.round(pct)+'%':'—',cx+bw/2,y+14);
+      ctx.textAlign='center';ctx.fillText(pct>0?Math.round(pct)+'%':'0%',cx+bw/2,y+14);
       // Bar
       const bx=cx+4,by=y+18;
       ctx.fillStyle='#E5E7EB';_roundRect(ctx,bx,by,bw-4,4,2);ctx.fill();
       if(pct>0){ctx.fillStyle=pc;_roundRect(ctx,bx,by,(bw-4)*Math.min(pct/130,1),4,2);ctx.fill();}
-      // Realizado / Meta with units
-      const rlzF=l==='VND'?'R$'+Math.round(rlz).toLocaleString('pt-BR'):l==='CLI'?rlz.toFixed(0)+' cli':rlz.toFixed(1)+' sku';
-      const metaF=l==='VND'?'R$'+Math.round(ocd).toLocaleString('pt-BR'):l==='CLI'?ocd.toFixed(0)+' cli':ocd.toFixed(1)+' sku';
-      ctx.fillStyle='#6B7280';ctx.font='8.5px "Segoe UI",Arial,sans-serif';ctx.textAlign='left';
-      ctx.fillText(ocd>0?rlzF+' / M:'+metaF:'—',cx+4,y+30);
-      // Falta / action
-      const gap=ocd*0.9-rlz;
-      if(gap>0&&pct<90&&ocd>0){
-        let gapTxt;
-        if(l==='SKU'){const cN=Math.round(id.c[1]);const sT=ocd*0.9;const nsk=cN>0?Math.ceil(sT*(cN+1)-rlz*cN):0;gapTxt=cN>0?'próx. c/ '+nsk+' SKU':'falta '+gap.toFixed(1)+' sku';}
-        else if(l==='CLI'){gapTxt='falta '+Math.ceil(gap)+' cli';}
-        else{gapTxt='falta R$'+Math.round(gap).toLocaleString('pt-BR');}
-        ctx.fillStyle='#EA580C';ctx.font='bold 8.5px "Segoe UI",Arial,sans-serif';
-        ctx.fillText(gapTxt,cx+4,y+42);
+      // feito / meta / falta / alvo — mesmo padrao do quadro da tela
+      ctx.textAlign='left';
+      if(ocd<=0){
+        ctx.fillStyle='#9CA3AF';ctx.font='9px "Segoe UI",Arial,sans-serif';
+        ctx.fillText('sem meta',cx+4,y+34);
+      }else{
+        const fmtV=v=>l==='VND'?'R$'+Math.round(v).toLocaleString('pt-BR'):l==='CLI'?v.toFixed(0)+' cli':v.toFixed(1);
+        const fmtG=v=>l==='VND'?'R$'+Math.round(v).toLocaleString('pt-BR'):l==='CLI'?Math.ceil(v)+' cli':v.toFixed(1);
+        ctx.fillStyle='#374151';ctx.font='9px "Segoe UI",Arial,sans-serif';
+        ctx.fillText('feito '+fmtV(rlz),cx+4,y+33);
+        ctx.fillStyle='#6B7280';ctx.font='9px "Segoe UI",Arial,sans-serif';
+        ctx.fillText('meta '+fmtV(ocd),cx+4,y+44);
+        const alvo=ocd*0.9,gap=alvo-rlz;
+        if(pct>=90){
+          ctx.fillStyle='#16A34A';ctx.font='bold 9.5px "Segoe UI",Arial,sans-serif';
+          ctx.fillText('✓ '+pts.toFixed(2)+' pt',cx+4,y+57);
+        }else if(gap>0){
+          ctx.fillStyle='#EA580C';ctx.font='bold 9px "Segoe UI",Arial,sans-serif';
+          if(l==='SKU'){
+            const cN=Math.round(id.c?id.c[1]:0);
+            const nsk=cN>0?Math.ceil(alvo*(cN+1)-rlz*cN):Math.ceil(alvo);
+            if(cN>0){ctx.fillText('próximo cliente',cx+4,y+57);ctx.fillText('com '+nsk+' SKUs',cx+4,y+67);}
+            else{ctx.fillText('chegar a '+alvo.toFixed(1),cx+4,y+57);}
+          }else{
+            ctx.fillText('falta '+fmtG(gap),cx+4,y+57);
+            if(rlz>0){ctx.fillStyle='#9CA3AF';ctx.font='8.5px "Segoe UI",Arial,sans-serif';ctx.fillText('(chegar a '+fmtG(alvo)+')',cx+4,y+67);}
+          }
+        }
       }
-      // Points earned
-      if(pts>0){ctx.fillStyle='#16A34A';ctx.font='bold 9px "Segoe UI",Arial,sans-serif';ctx.textAlign='right';ctx.fillText(pts.toFixed(2)+'pt',cx+bw,y+42);}
       ctx.textAlign='left';
     });
     // Separator
@@ -1292,8 +1304,10 @@ function shareRCACard(rcaName){
   // Footer
   const fy=HDR_H+THDR+inds.length*ROW_H;
   ctx.fillStyle='#1E3A5F';ctx.fillRect(0,fy,W,FTR_H);
-  ctx.fillStyle='rgba(255,255,255,.42)';ctx.font='10px "Segoe UI",Arial,sans-serif';
-  ctx.fillText('Formula Martins · Painel de Gestao · '+fmtUpdatedAt(G.updatedAt||new Date().toISOString()),PAD,fy+18);
+  ctx.fillStyle='rgba(255,255,255,.62)';ctx.font='9.5px "Segoe UI",Arial,sans-serif';
+  ctx.fillText('O ponto vale a partir de 90% da meta · SKU é média por cliente, não total · Vale 2x = indicador de peso dobrado',PAD,fy+17);
+  ctx.fillStyle='rgba(255,255,255,.40)';ctx.font='9.5px "Segoe UI",Arial,sans-serif';
+  ctx.fillText('Fórmula Martins · Painel de Gestão · '+fmtUpdatedAt(G.updatedAt||new Date().toISOString()),PAD,fy+33);
   const _fname='Parcial_'+rcaName+'_FormulaMartins';
   cv.toBlob(async blob=>{
     const file=new File([blob],_fname+'.png',{type:'image/png'});
