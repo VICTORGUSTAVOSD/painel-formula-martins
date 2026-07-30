@@ -280,6 +280,8 @@ body{background:var(--bg);color:var(--txt);font-size:13px;min-height:100vh}
     </div>
   </div>
 
+  <div id="load-warn" style="display:none;background:#FEF3C7;border:1px solid #FCD34D;border-radius:8px;padding:9px 12px;margin:0 0 10px;color:#92400E;font-size:12px;font-weight:600"></div>
+
   <div class="tabs" id="tabbar">
     <div class="tab on" data-tab="regional">🎯 GT Victor</div>
     <div class="tab" data-tab="ranking">🏆 Ranking</div>
@@ -344,7 +346,7 @@ const G = {curr:null, prev:null, uf:null, prevUf:null, gt:null, prevGt:null, win
 const STORE_KEY = 'painel_formula_martins_v1';
 // Subir sempre que a logica de calculo mudar: o cache gravado pela versao antiga
 // e descartado, senao o painel mostra numero velho ate a busca de fundo terminar.
-const STORE_VERSION = 3;
+const STORE_VERSION = 4;
 
 // ── Configuração Google Sheets ────────────────────────────────────────────
 // Publique cada aba como CSV: Arquivo → Compartilhar → Publicar na web → CSV
@@ -396,6 +398,33 @@ async function _loadGSRaw(url){
   return _parseCSVRaw(csv);
 }
 
+// Carrega UMA planilha isolando o erro: uma fonte quebrada nao pode derrubar
+// as outras cinco. Devolve null e registra o nome em fails[].
+async function _loadOne(label,url,fails,stat,msg){
+  if(!url||url.includes('COLE_URL')) return null;
+  if(stat&&msg) stat.textContent=msg;
+  try{
+    return await _loadGSRaw(url);
+  }catch(err){
+    console.warn('Falha ao carregar '+label+':',err&&err.message);
+    fails.push(label);
+    return null;
+  }
+}
+
+// Mostra o aviso de carga parcial. Aparece mesmo na atualizacao de fundo
+// (silent) — antes o erro era engolido e a tela ficava com numero velho
+// sem nenhum sinal de que a planilha nao tinha atualizado.
+function _setLoadWarn(fails,total){
+  const w=document.getElementById('load-warn');
+  if(!w) return;
+  if(!fails.length){ w.style.display='none'; w.textContent=''; return; }
+  const ok=total-fails.length;
+  w.style.display='block';
+  w.textContent='⚠️ '+ok+' de '+total+' planilhas atualizadas — falhou: '+fails.join(', ')+
+    (ok?'. Os dados dessas fontes continuam os da última atualização que deu certo.':'.');
+}
+
 async function goProcessFromSheets(opts={}){
   const silent=opts&&opts.silent;
   const btn=document.getElementById('gs-btn');
@@ -404,30 +433,46 @@ async function goProcessFromSheets(opts={}){
   if(btn){btn.disabled=true; btn.textContent='⏳ Carregando…';}
   if(stat){stat.style.display='block'; stat.textContent='📊 Atualizando dados…';}
   if(errBox) errBox.style.display='none';
+  const fails=[];
+  const TOTAL=6;
   try{
     const stored=loadStore();
+
     // Ranking do estado vem primeiro: e dele que saem os codigos do meu time,
     // usados para filtrar a parcial (que nao tem coluna Gestor).
-    let rawUf=null;
-    if(!GS_UF_URL.includes('COLE_URL')){
-      if(stat) stat.textContent='🏅 Buscando ranking do estado…';
-      rawUf=await _loadGSRaw(GS_UF_URL);
+    const rawUf=await _loadOne('Ranking Maranhão',GS_UF_URL,fails,stat,'🏅 Buscando ranking do estado…');
+    let teamCodes=extractTeamCodes(rawUf);
+    // Se o Ranking UF falhou, usa os codigos guardados na ultima carga boa —
+    // sem isso a parcial cairia junto e mostraria homonimos do Brasil inteiro.
+    if(!teamCodes||!teamCodes.size){
+      const savedTeam=(stored&&stored.team)||G.team;
+      teamCodes=savedTeam&&savedTeam.length?new Set(savedTeam):null;
     }
-    const teamCodes=extractTeamCodes(rawUf);
-    // Carrega parcial dos RCAs
-    if(stat) stat.textContent='📊 Atualizando dados…';
-    const rawCurr=await _loadGSRaw(GS_CURR_URL);
-    const newCurr=buildData(rawCurr, false, teamCodes);
-    const newPrev=stored&&stored.curr?stored.curr:null;
-    // Carrega parcial do GT (visão regional independente)
+
+    // Parcial dos RCAs — so reconstroi se tiver como filtrar o time
+    let newCurr=null,newPrev=null;
+    if(teamCodes&&teamCodes.size){
+      const rawCurr=await _loadOne('Parcial RCAs',GS_CURR_URL,fails,stat,'📊 Atualizando dados…');
+      if(rawCurr){
+        newCurr=buildData(rawCurr,false,teamCodes);
+        newPrev=stored&&stored.curr?stored.curr:null;
+      }
+    }else{
+      fails.push('Parcial RCAs (sem os códigos do time)');
+    }
+    if(!newCurr&&stored&&stored.curr){ newCurr=stored.curr; newPrev=stored.prev||null; }
+
+    // Parcial do GT (visão regional independente)
     let newGt=null,newPrevGt=null;
-    if(!GS_GT_URL.includes('COLE_URL')){
-      if(stat) stat.textContent='📊 Carregando parcial GT…';
-      const rawGt=await _loadGSRaw(GS_GT_URL);
-      newGt=buildData(rawGt, true, new Set([MY_GT_CODE]));
+    const rawGt=await _loadOne('Parcial GT',GS_GT_URL,fails,stat,'📊 Carregando parcial GT…');
+    if(rawGt){
+      newGt=buildData(rawGt,true,new Set([MY_GT_CODE]));
       newPrevGt=stored&&stored.gt?stored.gt:null;
+    }else if(stored&&stored.gt){
+      newGt=stored.gt; newPrevGt=stored.prevGt||null;
     }
-    // Carrega ranking do estado
+
+    // Ranking do estado
     let newUf=null,newPrevUf=null;
     if(rawUf){
       newUf=buildUFData(rawUf);
@@ -435,49 +480,47 @@ async function goProcessFromSheets(opts={}){
     }else if(stored&&stored.uf){
       newUf=stored.uf; newPrevUf=stored.prevUf||null;
     }
-    // Carrega ganhadores por fornecedor (representantes)
+
+    // Ganhadores por fornecedor (nivel GT)
     let newWinners=null;
-    if(!GS_WINNERS_URL.includes('COLE_URL')){
-      if(stat) stat.textContent='🥇 Carregando ganhadores por fornecedor…';
-      const rawWinners=await _loadGSRaw(GS_WINNERS_URL);
-      newWinners=buildWinnersData(rawWinners);
-    }else if(stored&&stored.winners){
-      newWinners=stored.winners;
-    }
-    // Carrega ranking geral GT
+    const rawWinners=await _loadOne('Ranking GT por indústria',GS_WINNERS_URL,fails,stat,'🥇 Carregando ganhadores por fornecedor…');
+    if(rawWinners) newWinners=buildWinnersData(rawWinners);
+    else if(stored&&stored.winners) newWinners=stored.winners;
+
+    // Ranking nacional GT
     let newGtRank=null;
-    if(!GS_GT_RANK_URL.includes('COLE_URL')){
-      if(stat) stat.textContent='📊 Carregando ranking nacional GT…';
-      const rawGtRank=await _loadGSRaw(GS_GT_RANK_URL);
-      newGtRank=buildGTRankData(rawGtRank);
-    }else if(stored&&stored.gtRank){
-      newGtRank=stored.gtRank;
-    }
-    // Carrega ranking geral RCA
+    const rawGtRank=await _loadOne('Ranking nacional GT',GS_GT_RANK_URL,fails,stat,'📊 Carregando ranking nacional GT…');
+    if(rawGtRank) newGtRank=buildGTRankData(rawGtRank);
+    else if(stored&&stored.gtRank) newGtRank=stored.gtRank;
+
+    // Ranking nacional RCA
     let newRcaRank=null;
-    if(!GS_RCA_RANK_URL.includes('COLE_URL')){
-      if(stat) stat.textContent='🏆 Carregando ranking nacional RCA…';
-      const rawRcaRank=await _loadGSRaw(GS_RCA_RANK_URL);
-      newRcaRank=buildRCARankData(rawRcaRank);
-    }else if(stored&&stored.rcaRank){
-      newRcaRank=stored.rcaRank;
-    }
+    const rawRcaRank=await _loadOne('Ranking nacional RCA',GS_RCA_RANK_URL,fails,stat,'🏆 Carregando ranking nacional RCA…');
+    if(rawRcaRank) newRcaRank=buildRCARankData(rawRcaRank);
+    else if(stored&&stored.rcaRank) newRcaRank=stored.rcaRank;
+
+    // Sem parcial nenhuma (nem nova, nem salva) nao ha painel para mostrar
+    if(!newCurr) throw new Error('Não foi possível carregar a parcial dos RCAs'+(fails.length?' ('+fails.join(', ')+')':'')+'.');
+
     G.curr=newCurr; G.prev=newPrev;
     G.gt=newGt; G.prevGt=newPrevGt;
     G.uf=newUf; G.prevUf=newPrevUf;
     G.winners=newWinners;
     G.gtRank=newGtRank; G.rcaRank=newRcaRank;
+    G.team=teamCodes&&teamCodes.size?[...teamCodes]:(G.team||null);
     G.updatedAt=new Date().toISOString();
     saveStore();
     renderDashboard();
+    _setLoadWarn(fails,TOTAL);
     document.getElementById('upload-screen').style.display='none';
     document.getElementById('dashboard').style.display='block';
     if(stat) stat.style.display='none';
-    if(btn){btn.disabled=false; btn.textContent='🔄 Atualizar';}
+    if(btn){btn.disabled=false; btn.textContent=fails.length?'🔄 Tentar de novo':'🔄 Atualizar';}
   }catch(err){
     if(!silent){
       if(errBox){errBox.style.display='block'; errBox.textContent='Erro ao carregar: '+err.message;}
     }
+    _setLoadWarn(fails,TOTAL);
     if(btn){btn.disabled=false; btn.textContent='🔄 Tentar novamente';}
     if(stat) stat.style.display='none';
   }
@@ -540,6 +583,7 @@ function saveStore(){
     const payload={
       v:STORE_VERSION,
       curr:G.curr, prev:G.prev, uf:G.uf,
+      team:G.team&&G.team.length?G.team:null,
       prevUf:G.prevUf||null,
       gt:G.gt||null, prevGt:G.prevGt||null,
       winners:G.winners||null,
@@ -3124,6 +3168,7 @@ window.addEventListener('DOMContentLoaded', async function(){
     if(s && s.curr){
       G.curr=s.curr; G.prev=s.prev||null; G.uf=s.uf||null; G.prevUf=s.prevUf||null;
       G.gt=s.gt||null; G.prevGt=s.prevGt||null; G.winners=s.winners||null; G.gtRank=s.gtRank||null; G.rcaRank=s.rcaRank||null; G.updatedAt=s.updatedAt||null;
+      G.team=s.team||null;
       document.getElementById('upload-screen').style.display='none';
       document.getElementById('dashboard').style.display='block';
       renderDashboard();
