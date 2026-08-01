@@ -257,10 +257,41 @@ body{background:var(--bg);color:var(--txt);font-size:13px;min-height:100vh}
     <button type="button" id="view-saved-btn" onclick="openSavedDashboard()" style="display:none;width:100%;background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:10px;padding:11px;font-size:13px;font-weight:600;cursor:pointer">👁️ Ver painel com os dados salvos</button>
     <div class="err-box" id="err-box"></div>
 
+    <button type="button" onclick="valOpen()" style="width:100%;background:rgba(255,255,255,.10);color:#fff;border:1px dashed rgba(255,255,255,.35);border-radius:10px;padding:12px;font-size:13px;font-weight:600;cursor:pointer;margin-top:10px">📂 Conferir planilhas antes de subir no Drive</button>
+    <div style="font-size:11px;color:rgba(255,255,255,.5);text-align:center;margin-top:6px;line-height:1.45">Escolha os .xlsx que você acabou de exportar. O painel diz qual é qual e o que cada uma vai carregar — sem precisar subir no Drive antes.</div>
+
     <!-- inputs ocultos mantidos para compatibilidade -->
     <input type="file" accept=".xlsx,.xls,.csv" id="inp-curr" style="display:none" onchange="fileSelected('curr',this)">
     <input type="file" accept=".xlsx,.xls,.csv" id="inp-prev" style="display:none" onchange="fileSelected('prev',this)">
     <input type="file" accept=".xlsx,.xls,.csv" id="inp-uf" style="display:none" onchange="fileSelected('uf',this)">
+  </div>
+</div>
+
+
+<!-- ===== VALIDADOR DE PLANILHAS LOCAIS ===== -->
+<div id="val-screen" style="display:none;position:fixed;inset:0;z-index:9000;background:#0F172A;overflow-y:auto;padding:18px 14px 40px">
+  <div style="max-width:900px;margin:0 auto">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:4px">
+      <h2 style="color:#fff;font-size:19px;margin:0">📂 Conferir planilhas</h2>
+      <button type="button" onclick="valClose()" style="background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:8px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer">✕ Fechar</button>
+    </div>
+    <div style="color:rgba(255,255,255,.6);font-size:12px;line-height:1.5;margin-bottom:14px">
+      Selecione os arquivos que você exportou do sistema Martins. Eu identifico qual é qual, digo o que cada um vai carregar no painel e aviso se algum veio com o filtro errado. Só depois de ficar tudo verde vale a pena substituir no Drive.
+    </div>
+
+    <input type="file" accept=".xlsx,.xls,.csv" multiple id="val-input" style="display:none" onchange="valFiles(this.files)">
+    <div id="val-drop" onclick="document.getElementById('val-input').click()"
+         style="border:2px dashed rgba(255,255,255,.3);border-radius:14px;padding:26px 16px;text-align:center;cursor:pointer;color:rgba(255,255,255,.75);font-size:14px;font-weight:600;background:rgba(255,255,255,.04)">
+      Clique aqui ou arraste os .xlsx<br>
+      <span style="font-size:11px;font-weight:400;opacity:.65">pode jogar todos de uma vez</span>
+    </div>
+
+    <div id="val-list" style="margin-top:16px"></div>
+    <div id="val-actions" style="display:none;margin-top:16px">
+      <div id="val-nota-erro" style="display:none;color:#FCA5A5;font-size:12px;line-height:1.5;margin-bottom:9px;text-align:center"></div>
+      <button type="button" id="val-apply" onclick="valApply()" style="width:100%;background:#16A34A;color:#fff;border:none;border-radius:12px;padding:15px;font-size:15px;font-weight:700;cursor:pointer">✅ Carregar no painel com estes arquivos</button>
+      <div style="color:rgba(255,255,255,.5);font-size:11px;text-align:center;margin-top:7px;line-height:1.45">Testa de verdade: o painel recalcula com estes arquivos. As planilhas que você não trouxe continuam vindo do Drive. Nada é enviado para lugar nenhum — a leitura é local.</div>
+    </div>
   </div>
 </div>
 
@@ -276,6 +307,7 @@ body{background:var(--bg);color:var(--txt);font-size:13px;min-height:100vh}
       <div class="hdr-stat" id="hdr-total">—</div>
       <div class="hdr-stat" id="hdr-rcas">—</div>
       <button class="btn-reload" onclick="goProcessFromSheets()" style="opacity:.65;font-size:11px;padding:5px 10px">🔄 Atualizar</button>
+      <button class="btn-reload" onclick="valOpen()" title="Ler planilhas do computador e conferir antes de subir no Drive">📂 Conferir planilhas</button>
       <button class="btn-reload" onclick="clearAll()" title="Apagar todos os dados salvos">🗑️ Limpar tudo</button>
     </div>
   </div>
@@ -435,12 +467,16 @@ async function goProcessFromSheets(opts={}){
   if(errBox) errBox.style.display='none';
   const fails=[];
   const TOTAL=6;
+  // opts.raws: planilhas lidas do computador pelo validador. O que vier por
+  // arquivo nao passa pela rede; o que faltar continua vindo do CSV do Drive.
+  const _ov=(opts&&opts.raws)||{};
+  const _src=(k,label,url,msg)=>(_ov[k]!=null?Promise.resolve(_ov[k]):_loadOne(label,url,fails,stat,msg));
   try{
     const stored=loadStore();
 
     // Ranking do estado vem primeiro: e dele que saem os codigos do meu time,
     // usados para filtrar a parcial (que nao tem coluna Gestor).
-    const rawUf=await _loadOne('Ranking Maranhão',GS_UF_URL,fails,stat,'🏅 Buscando ranking do estado…');
+    const rawUf=await _src('uf','Ranking Maranhão',GS_UF_URL,'🏅 Buscando ranking do estado…');
     let teamCodes=extractTeamCodes(rawUf);
     // Se o Ranking UF falhou, usa os codigos guardados na ultima carga boa —
     // sem isso a parcial cairia junto e mostraria homonimos do Brasil inteiro.
@@ -452,7 +488,7 @@ async function goProcessFromSheets(opts={}){
     // Parcial dos RCAs — so reconstroi se tiver como filtrar o time
     let newCurr=null,newPrev=null;
     if(teamCodes&&teamCodes.size){
-      const rawCurr=await _loadOne('Parcial RCAs',GS_CURR_URL,fails,stat,'📊 Atualizando dados…');
+      const rawCurr=await _src('curr','Parcial RCAs',GS_CURR_URL,'📊 Atualizando dados…');
       if(rawCurr){
         newCurr=buildData(rawCurr,false,teamCodes);
         newPrev=stored&&stored.curr?stored.curr:null;
@@ -464,7 +500,7 @@ async function goProcessFromSheets(opts={}){
 
     // Parcial do GT (visão regional independente)
     let newGt=null,newPrevGt=null;
-    const rawGt=await _loadOne('Parcial GT',GS_GT_URL,fails,stat,'📊 Carregando parcial GT…');
+    const rawGt=await _src('gt','Parcial GT',GS_GT_URL,'📊 Carregando parcial GT…');
     if(rawGt){
       newGt=buildData(rawGt,true,new Set([MY_GT_CODE]));
       newPrevGt=stored&&stored.gt?stored.gt:null;
@@ -483,19 +519,19 @@ async function goProcessFromSheets(opts={}){
 
     // Ganhadores por fornecedor (nivel GT)
     let newWinners=null;
-    const rawWinners=await _loadOne('Ranking GT por indústria',GS_WINNERS_URL,fails,stat,'🥇 Carregando ganhadores por fornecedor…');
+    const rawWinners=await _src('winners','Ranking GT por indústria',GS_WINNERS_URL,'🥇 Carregando ganhadores por fornecedor…');
     if(rawWinners) newWinners=buildWinnersData(rawWinners);
     else if(stored&&stored.winners) newWinners=stored.winners;
 
     // Ranking nacional GT
     let newGtRank=null;
-    const rawGtRank=await _loadOne('Ranking nacional GT',GS_GT_RANK_URL,fails,stat,'📊 Carregando ranking nacional GT…');
+    const rawGtRank=await _src('gtRank','Ranking nacional GT',GS_GT_RANK_URL,'📊 Carregando ranking nacional GT…');
     if(rawGtRank) newGtRank=buildGTRankData(rawGtRank);
     else if(stored&&stored.gtRank) newGtRank=stored.gtRank;
 
     // Ranking nacional RCA
     let newRcaRank=null;
-    const rawRcaRank=await _loadOne('Ranking nacional RCA',GS_RCA_RANK_URL,fails,stat,'🏆 Carregando ranking nacional RCA…');
+    const rawRcaRank=await _src('rcaRank','Ranking nacional RCA',GS_RCA_RANK_URL,'🏆 Carregando ranking nacional RCA…');
     if(rawRcaRank) newRcaRank=buildRCARankData(rawRcaRank);
     else if(stored&&stored.rcaRank) newRcaRank=stored.rcaRank;
 
@@ -525,6 +561,375 @@ async function goProcessFromSheets(opts={}){
     if(stat) stat.style.display='none';
   }
 }
+
+
+// ============ VALIDADOR DE PLANILHAS LOCAIS ============
+// Le os .xlsx do disco, identifica cada planilha e mostra o que ela VAI carregar
+// no painel — antes de substituir o arquivo no Drive. O erro classico que isso
+// pega: Ranking GEGT_ exportado com o GE errado (o 77682 nao esta no arquivo) e
+// os dois exports chamados "Tabela Performance" trocados entre si.
+const VAL_SPECS=[
+  {id:'curr',    n:1, nome:'Parcial RCAs (semanal)',        drive:'1 - Parcial RCAs (semanal).xlsx',                       expo:'Tabela Performance — a GRANDE (~6 MB), nível RCA'},
+  {id:'gt',      n:2, nome:'Parcial GT Victor (semanal)',   drive:'2 - Parcial GT Victor (semanal).xlsx',                  expo:'Tabela Performance — a PEQUENA (~400 KB), nível GT'},
+  {id:'uf',      n:3, nome:'Ranking Maranhão (acumulado)',  drive:'3 - Ranking Maranhao (acumulado).xlsx',                 expo:'Ranking UF_ (pode vir com o Brasil inteiro)'},
+  {id:'winners', n:4, nome:'Ranking GT por Indústria',      drive:'4 - Ranking GT por Industria (acumulado).xlsx',         expo:'Ranking Industria_ — a PEQUENA (~107 KB), nível GT'},
+  {id:'gtRank',  n:5, nome:'Ranking Nacional GT',           drive:'5 - Ranking Nacional GT (todos os GEs).xlsx',           expo:'Ranking GEGT_ — exportar SEM filtro de GE'},
+  {id:'rcaRank', n:6, nome:'Ranking Nacional RCA',          drive:'6 - Ranking Nacional RCA.xlsx',                         expo:'Ranking Detalhado_'},
+  {id:'rcaInd',  n:7, nome:'Ranking RCA por Indústria',     drive:'7 - Ranking RCA por Industria (ainda nao usada).xlsx',  expo:'Ranking Industria_ — a GRANDE (~1,8 MB), nível RCA', off:true}
+];
+const VAL_BY_ID={}; VAL_SPECS.forEach(s=>{VAL_BY_ID[s.id]=s;});
+// Pares que so o conteudo distingue (a presenca do codigo 77682 e fato, o nome do arquivo nao e)
+const VAL_PAIRS=[['curr','gt'],['winners','rcaInd'],['gtRank','rcaRank']];
+let VAL_STATE=[];
+
+function valOpen(){ document.getElementById('val-screen').style.display='block'; }
+function valClose(){ document.getElementById('val-screen').style.display='none'; }
+
+function _valNorm(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+
+// Le o arquivo como matriz de linhas — mesmo formato que _parseCSVRaw devolve,
+// para poder passar direto para as funcoes build* sem nenhuma adaptacao.
+function valReadRaw(file){
+  const ehCSV=/\.csv$/i.test(file.name||'');
+  return new Promise((resolve,reject)=>{
+    const rd=new FileReader();
+    rd.onload=e=>{
+      try{
+        // CSV vai no parser do proprio painel: o SheetJS converteria "2,400"
+        // (2,4 pontos no formato brasileiro) para o numero 2400.
+        if(ehCSV){ resolve(_parseCSVRaw(String(e.target.result))); return; }
+        const wb=XLSX.read(e.target.result,{type:'array'});
+        const ws=wb.Sheets[wb.SheetNames[0]];
+        resolve(XLSX.utils.sheet_to_json(ws,{header:1,defval:''}));
+      }catch(err){ reject(err); }
+    };
+    rd.onerror=()=>reject(new Error('Nao consegui ler o arquivo'));
+    if(ehCSV) rd.readAsText(file,'UTF-8'); else rd.readAsArrayBuffer(file);
+  });
+}
+
+function _valHeader(raw){
+  for(let i=0;i<Math.min(raw.length,12);i++){
+    const r=(raw[i]||[]).map(c=>_valNorm(c).toUpperCase().trim());
+    if(r.some(c=>c.includes('FUNCION'))){
+      const m={};
+      r.forEach((c,j)=>{
+        if(c.includes('FUNC')&&m.func==null)m.func=j;
+        else if(c.includes('GESTOR')&&m.gestor==null)m.gestor=j;
+        else if(c==='UF'&&m.uf==null)m.uf=j;
+        else if(c==='INDICADOR'&&m.indi==null)m.indi=j;
+        else if(c==='OCD'&&m.ocd==null)m.ocd=j;
+        else if((c==='INDUSTRIA'||c.includes('FORNEC'))&&m.ind==null)m.ind=j;
+        else if(c==='PONTOS'&&m.pts==null)m.pts=j;
+        else if(c==='CARGO'&&m.cargo==null)m.cargo=j;
+        else if((c.includes('RANKING')||c.includes('COLOCA'))&&m.rank==null)m.rank=j;
+      });
+      return {hRow:i,cols:m};
+    }
+  }
+  return null;
+}
+
+function _valByName(nome){
+  const s=_valNorm(nome);
+  if(/parcial\s*rca|(^|\D)1\s*-\s*parcial/.test(s)) return 'curr';
+  if(/parcial\s*gt|(^|\D)2\s*-\s*parcial/.test(s)) return 'gt';
+  if(/ranking\s*uf|maranhao|(^|\D)3\s*-\s*ranking/.test(s)) return 'uf';
+  if(/gt\s*-\s*r\s*industria|gt\s*por\s*industria|(^|\D)4\s*-\s*ranking/.test(s)) return 'winners';
+  if(/gegt|nacional\s*gt|(^|\D)5\s*-\s*ranking/.test(s)) return 'gtRank';
+  if(/detalhado|nacional\s*rca|(^|\D)6\s*-\s*ranking/.test(s)) return 'rcaRank';
+  if(/rca\s*-\s*r\s*industria|rca\s*por\s*industria|(^|\D)7\s*-\s*ranking/.test(s)) return 'rcaInd';
+  return null;
+}
+
+// Identifica pela ESTRUTURA (colunas) + pelo fato de o GT 77682 estar ou nao no arquivo.
+function _valByShape(raw){
+  const h=_valHeader(raw);
+  if(!h) return {id:null,h:null,has77:false,nLin:0};
+  const c=h.cols, cf=(c.func!=null?c.func:0);
+  let has77=false,nLin=0,nGT=0,nRCA=0;
+  for(let i=h.hRow+1;i<raw.length;i++){
+    const r=raw[i]; if(!r) continue;
+    const v=String(r[cf]||'');
+    if(v.trim())nLin++;
+    if(!has77&&v.indexOf(MY_GT_CODE)>=0)has77=true;
+    if(c.cargo!=null){
+      const cg=String(r[c.cargo]||'').trim().toUpperCase();
+      if(cg==='GT')nGT++; else if(cg)nRCA++;
+    }
+  }
+  // nivel do arquivo pela coluna Cargo; sem ela, cai no 77682
+  const nivel = (nGT+nRCA)>0 ? (nGT>nRCA?'GT':'RCA') : (has77?'GT':'RCA');
+  const ehGT = nivel==='GT';
+  let id;
+  if(c.indi!=null||c.ocd!=null) id=has77?'gt':'curr';
+  else if(c.uf!=null)           id='uf';
+  else if(c.ind!=null)          id=ehGT?'winners':'rcaInd';
+  else                          id=ehGT?'gtRank':'rcaRank';
+  return {id,h,has77,nLin,nivel,nGT,nRCA};
+}
+
+function _valSamePair(a,b){ return VAL_PAIRS.some(p=>p.indexOf(a)>=0&&p.indexOf(b)>=0); }
+
+function _valIdentify(raw,nome){
+  const shape=_valByShape(raw);
+  const byName=_valByName(nome);
+  let id=shape.id, aviso=null;
+  if(!id&&byName) id=byName;
+  if(byName&&shape.id&&byName!==shape.id){
+    if(_valSamePair(byName,shape.id)){
+      // O conteudo manda: 77682 presente/ausente e fato, nome de arquivo nao e.
+      id=shape.id;
+      aviso='O nome do arquivo parece "'+VAL_BY_ID[byName].nome+'", mas o conteudo é de "'+VAL_BY_ID[shape.id].nome+'". Segui o conteúdo. Confira se você não trocou os dois exports.';
+    }else{
+      id=byName;
+      aviso='O nome diz "'+VAL_BY_ID[byName].nome+'" e a estrutura lembra "'+VAL_BY_ID[shape.id].nome+'". Confirme no seletor abaixo qual é a certa.';
+    }
+  }
+  return {id,aviso,shape};
+}
+
+// Codigos do time: saem do Ranking UF. Se ele nao veio nesta leva, usa o da ultima carga boa.
+function _valTeamCodes(items){
+  const uf=items.find(it=>it.id==='uf'&&it.raw);
+  if(uf){
+    try{ const s=extractTeamCodes(uf.raw); if(s&&s.size) return s; }catch(e){}
+  }
+  const st=loadStore();
+  const saved=(st&&st.team)||G.team;
+  return saved&&saved.length?new Set(saved):null;
+}
+
+// O teste de verdade: roda a MESMA funcao que o painel usa e reporta o resultado.
+// Teto por indicador e 2,4 (120% x peso 2). Valor acima disso denuncia numero
+// mal formatado no arquivo — foi assim que "2,400" ja virou 2400.
+function _valEscala(d,ondeReg){
+  let pior=0;
+  const olha=ind=>['c','s','v'].forEach(k=>{ if(ind[k]&&ind[k][3]>pior)pior=ind[k][3]; });
+  // Na parcial dos RCAs o teto vale por RCA; d.reg ali e a soma do time inteiro.
+  // Na parcial do GT o arquivo tem um GT so, entao d.reg e que carrega o valor.
+  if(ondeReg) Object.values(d.reg||{}).forEach(olha);
+  else Object.values(d.rcas||{}).forEach(r=>Object.values(r.inds||{}).forEach(olha));
+  return pior;
+}
+
+function _valCheck(item,items){
+  const raw=item.raw, out={lv:'ok',linhas:[]};
+  const add=(lv,txt)=>{ out.linhas.push({lv,txt}); if(lv==='err')out.lv='err'; else if(lv==='warn'&&out.lv!=='err')out.lv='warn'; };
+  add('info',(item.shape.nLin||0).toLocaleString('pt-BR')+' linhas de dados no arquivo.');
+  try{
+    if(item.id==='curr'){
+      const tc=_valTeamCodes(items);
+      if(!tc||!tc.size){ add('err','Não sei quais são os códigos do seu time. Traga junto a planilha 3 (Ranking Maranhão) ou carregue o painel uma vez pelo Drive antes.'); return out; }
+      const d=buildData(raw,false,tc);
+      const nR=Object.keys(d.rcas||{}).length;
+      if(!nR) add('err','Nenhum RCA do seu time foi encontrado. Este arquivo não é a parcial dos RCAs, ou veio de outro período/gestor.');
+      else if(nR<8) add('warn','Só '+nR+' RCAs do time encontrados — o normal é ~13. Confira se o export saiu completo.');
+      else add('ok',nR+' RCAs do time encontrados (de '+(item.shape.nLin||0).toLocaleString('pt-BR')+' linhas — o resto do Brasil é descartado pelo painel).');
+      const pior=_valEscala(d,false);
+      if(pior>2.5) add('err','Números fora de escala (um RCA tirou '+pior.toFixed(1)+' pts num indicador, o teto é 2,4). A coluna Pontos veio num formato que o painel lê errado — exporte de novo em .xlsx.');
+      const tot=Object.values(d.rcas||{}).reduce((a,r)=>a+(r.total||0),0);
+      add('info','Total do time nesta parcial: '+tot.toFixed(1)+' pts.');
+      const at=G.curr&&G.curr.rcas?Object.values(G.curr.rcas).reduce((a,r)=>a+(r.total||0),0):null;
+      if(at!=null) add(Math.abs(at-tot)<0.01?'warn':'info','No painel agora: '+at.toFixed(1)+' pts.'+(Math.abs(at-tot)<0.01?' Idêntico — parece a MESMA parcial já carregada, não uma nova.':''));
+    }
+    else if(item.id==='gt'){
+      if(!item.shape.has77){ add('err','O GT '+MY_GT_CODE+' não está neste arquivo. Você exportou a Tabela Performance dos RCAs (a grande), não a do GT.'); return out; }
+      const d=buildData(raw,true,new Set([MY_GT_CODE]));
+      const tot=Object.values(d.reg||{}).reduce((a,r)=>a+r.c[3]+r.s[3]+r.v[3],0);
+      const nInd=Object.keys(d.reg||{}).length;
+      const pior=_valEscala(d,true);
+      if(pior>2.5) add('err','Números fora de escala (um indicador deu '+pior.toFixed(1)+' pts, o teto é 2,4). A coluna Pontos veio num formato que o painel lê errado — exporte de novo em .xlsx.');
+      if(!nInd) add('err','Nenhuma indústria lida para o GT '+MY_GT_CODE+'.');
+      else add('ok',nInd+' indústrias, '+tot.toFixed(1)+' pts só do GT '+MY_GT_CODE+' (os outros GTs do arquivo são descartados).');
+    }
+    else if(item.id==='uf'){
+      const d=buildUFData(raw);
+      const arr=(d&&d.ranking)||[];
+      const meus=(d&&d.myTeam?d.myTeam.length:0);
+      if(!arr.length) add('err','Nenhuma linha do '+MY_UF_KEY+' encontrada. Este arquivo não tem o Maranhão.');
+      else{
+        add('ok',arr.length+' representantes no '+MY_UF_KEY+', '+meus+' são do seu time.');
+        add('info','Líder do estado no arquivo: '+d.leaderName+' ('+d.leaderGT+') — '+(d.leaderPts||0).toFixed(2)+' pts.');
+        if(meus<8) add('warn','Só '+meus+' do seu time no estado — o normal é ~13. Export incompleto?');
+      }
+      const tc=extractTeamCodes(raw);
+      add(tc&&tc.size?'ok':'err',(tc?tc.size:0)+' códigos do time extraídos daqui (é esta planilha que filtra a parcial dos RCAs).');
+    }
+    else if(item.id==='winners'){
+      if(!item.shape.has77){ add('err','O GT '+MY_GT_CODE+' não está neste arquivo. Provavelmente é o Ranking Industria_ de nível RCA (a grande) — essa é a planilha 7, não a 4.'); return out; }
+      const d=buildWinnersData(raw);
+      const nInd=Object.keys(d.victorGT||{}).length;
+      if(!nInd) add('err','Nenhuma colocação do GT '+MY_GT_CODE+' por indústria foi lida.');
+      else{
+        add('ok',nInd+' indústrias com a colocação do GT '+MY_GT_CODE+'.');
+        const melhores=Object.entries(d.victorGT).sort((a,b)=>a[1].rank-b[1].rank).slice(0,3)
+          .map(([i,v])=>i+' '+v.rank+'º').join(' · ');
+        if(melhores) add('info','Melhores: '+melhores+'.');
+      }
+    }
+    else if(item.id==='gtRank'){
+      const d=buildGTRankData(raw);
+      if(!d) add('err','Cabeçalho não reconhecido.');
+      else if(d.victRank===999||!d.victPts){
+        add('err','O GT '+MY_GT_CODE+' NÃO está neste arquivo (só '+d.totalGTs+' GTs vieram) — é o erro do filtro de GE. Exporte o Ranking GEGT_ sem filtro de GE nenhum, ou com o GE JONATAS ALMEIDA DE OLIVEIRA. Do jeito que está, o painel mostraria 999º.');
+      }else{
+        add('ok','GT '+MY_GT_CODE+': '+d.victRank+'º de '+d.totalGTs+' GTs, '+d.victPts.toFixed(3)+' pts.');
+        if(G.gtRank&&G.gtRank.totalGTs) add('info','No painel agora: '+G.gtRank.victRank+'º de '+G.gtRank.totalGTs+'.');
+        if(d.totalGTs<60) add('warn','Só '+d.totalGTs+' GTs no arquivo. O nacional costuma passar de 180 — parece filtrado por GE.');
+      }
+    }
+    else if(item.id==='rcaRank'){
+      const d=buildRCARankData(raw);
+      const nR=Object.keys(d||{}).length;
+      if(!nR) add('err','Nenhum RCA com gestor "'+MY_GESTOR_KEY+'" neste arquivo.');
+      else{
+        add(nR<8?'warn':'ok',nR+' RCAs do seu time com colocação nacional.');
+        const top=Object.entries(d).sort((a,b)=>a[1].rank-b[1].rank)[0];
+        if(top) add('info','Melhor do time: '+top[0]+' em '+top[1].rank+'º nacional.');
+      }
+    }
+    else if(item.id==='rcaInd'){
+      const d=buildWinnersData(raw);
+      const nT=Object.keys(d.myTeam||{}).length;
+      add('warn','Esta planilha ainda NÃO é lida pelo painel (é a 7ª fonte, pendente de ligar no código). Guarde no Drive assim mesmo.');
+      add(nT?'ok':'err',nT+' RCAs do seu time com ranking por indústria aqui dentro.');
+      if(item.shape.has77) add('warn','O GT '+MY_GT_CODE+' aparece aqui — se este arquivo for de nível GT, ele é a planilha 4, não a 7.');
+    }
+    else add('err','Não consegui identificar que planilha é esta.');
+  }catch(err){
+    add('err','Erro ao processar: '+(err&&err.message||err));
+  }
+  return out;
+}
+
+async function valFiles(fileList){
+  const arr=[...fileList];
+  if(!arr.length) return;
+  const list=document.getElementById('val-list');
+  list.innerHTML='<div style="color:rgba(255,255,255,.7);font-size:13px;padding:12px">⏳ Lendo '+arr.length+' arquivo(s)…</div>';
+  const items=[];
+  for(const f of arr){
+    const it={file:f,nome:f.name,tam:f.size,raw:null,id:null,aviso:null,shape:{nLin:0,has77:false},erro:null};
+    try{
+      it.raw=await valReadRaw(f);
+      const idf=_valIdentify(it.raw,f.name);
+      it.id=idf.id; it.aviso=idf.aviso; it.shape=idf.shape;
+    }catch(err){ it.erro=(err&&err.message)||String(err); }
+    items.push(it);
+  }
+  // Junta com o que ja estava na tela, substituindo pelo mesmo id
+  items.forEach(it=>{
+    const i=VAL_STATE.findIndex(o=>o.id&&it.id&&o.id===it.id);
+    if(i>=0)VAL_STATE[i]=it; else VAL_STATE.push(it);
+  });
+  valRun();
+}
+
+function valRun(){
+  VAL_STATE.forEach(it=>{ it.res=it.erro?null:_valCheck(it,VAL_STATE); });
+  valRender();
+}
+
+function valSetId(idx,novo){
+  VAL_STATE[idx].id=novo||null;
+  VAL_STATE[idx].aviso=null;
+  valRun();
+}
+function valRemove(idx){ VAL_STATE.splice(idx,1); valRun(); }
+
+function valRender(){
+  const list=document.getElementById('val-list');
+  const acts=document.getElementById('val-actions');
+  if(!VAL_STATE.length){ list.innerHTML=''; acts.style.display='none'; return; }
+  const ICO={ok:'✅',warn:'⚠️',err:'❌',info:'•'};
+  const COR={ok:'#86EFAC',warn:'#FDE68A',err:'#FCA5A5',info:'rgba(255,255,255,.62)'};
+  let h='';
+  VAL_STATE.forEach((it,idx)=>{
+    const spec=it.id?VAL_BY_ID[it.id]:null;
+    const lv=it.erro?'err':(it.res?it.res.lv:'err');
+    const brd=lv==='err'?'rgba(248,113,113,.55)':lv==='warn'?'rgba(253,224,71,.5)':'rgba(34,197,94,.5)';
+    const bg =lv==='err'?'rgba(248,113,113,.10)':lv==='warn'?'rgba(253,224,71,.09)':'rgba(34,197,94,.09)';
+    h+='<div style="border:1px solid '+brd+';background:'+bg+';border-radius:12px;padding:13px 14px;margin-bottom:10px">';
+    h+='<div style="display:flex;align-items:flex-start;gap:8px;justify-content:space-between">';
+    h+='<div style="min-width:0"><div style="color:#fff;font-size:14px;font-weight:700">'+ICO[lv]+' '+(spec?spec.n+' — '+spec.nome:'Não identificada')+'</div>';
+    h+='<div style="color:rgba(255,255,255,.5);font-size:11px;margin-top:2px;word-break:break-all">'+it.nome+' · '+(it.tam/1048576).toFixed(2)+' MB</div></div>';
+    h+='<button type="button" onclick="valRemove('+idx+')" title="Tirar da lista" style="flex:none;background:none;border:none;color:rgba(255,255,255,.45);font-size:16px;cursor:pointer;line-height:1">✕</button>';
+    h+='</div>';
+    if(it.erro) h+='<div style="color:'+COR.err+';font-size:12px;margin-top:8px">❌ '+it.erro+'</div>';
+    if(it.aviso) h+='<div style="color:'+COR.warn+';font-size:12px;margin-top:8px;line-height:1.5">⚠️ '+it.aviso+'</div>';
+    if(it.res) it.res.linhas.forEach(l=>{
+      h+='<div style="color:'+COR[l.lv]+';font-size:12px;margin-top:6px;line-height:1.5">'+ICO[l.lv]+' '+l.txt+'</div>';
+    });
+    if(spec){
+      h+='<div style="color:rgba(255,255,255,.45);font-size:11px;margin-top:9px;line-height:1.5;border-top:1px solid rgba(255,255,255,.1);padding-top:8px">';
+      h+='Export do sistema: <strong>'+spec.expo+'</strong><br>No Drive, substituir por cima de: <strong>'+spec.drive+'</strong></div>';
+    }
+    h+='<div style="margin-top:9px"><select onchange="valSetId('+idx+',this.value)" style="width:100%;background:rgba(0,0,0,.35);color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:8px;padding:7px;font-size:12px">';
+    h+='<option value=""'+(it.id?'':' selected')+'>— não identificada —</option>';
+    VAL_SPECS.forEach(s=>{ h+='<option value="'+s.id+'"'+(it.id===s.id?' selected':'')+'>'+s.n+' — '+s.nome+'</option>'; });
+    h+='</select></div>';
+    h+='</div>';
+  });
+
+  // Falta alguma? (a 7 nao conta: nao e usada pelo painel)
+  const tem=new Set(VAL_STATE.filter(i=>i.id).map(i=>i.id));
+  const faltam=VAL_SPECS.filter(s=>!s.off&&!tem.has(s.id));
+  if(faltam.length){
+    h+='<div style="border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.04);border-radius:12px;padding:12px 14px;color:rgba(255,255,255,.6);font-size:12px;line-height:1.6">';
+    h+='<strong style="color:rgba(255,255,255,.8)">Não trouxe:</strong> '+faltam.map(s=>s.n+' — '+s.nome).join(' · ')+'.<br>Sem problema: essas continuam vindo do Drive quando você carregar.</div>';
+  }
+  const dup=VAL_STATE.filter(i=>i.id).map(i=>i.id);
+  const rep=[...new Set(dup.filter((v,i)=>dup.indexOf(v)!==i))];
+  if(rep.length){
+    h+='<div style="border:1px solid rgba(248,113,113,.5);background:rgba(248,113,113,.1);border-radius:12px;padding:12px 14px;color:#FCA5A5;font-size:12px;margin-top:10px">❌ Dois arquivos marcados como a mesma planilha ('+rep.map(r=>VAL_BY_ID[r].nome).join(', ')+'). Acerte no seletor antes de carregar.</div>';
+  }
+  list.innerHTML=h;
+
+  const usaveis=VAL_STATE.filter(i=>i.id&&i.id!=='rcaInd'&&i.res&&i.res.lv!=='err');
+  const btn=document.getElementById('val-apply');
+  acts.style.display='block';
+  if(!usaveis.length||rep.length){
+    btn.disabled=true; btn.style.opacity='.45'; btn.style.cursor='not-allowed';
+    btn.textContent=rep.length?'Resolva a duplicidade acima':'Nenhuma planilha válida para carregar';
+  }else{
+    btn.disabled=false; btn.style.opacity='1'; btn.style.cursor='pointer';
+    btn.textContent='✅ Carregar no painel com '+usaveis.length+' planilha(s) deste computador';
+  }
+  const ruins=VAL_STATE.filter(i=>i.erro||(i.res&&i.res.lv==='err')).length;
+  const nota=document.getElementById('val-nota-erro');
+  if(nota){
+    nota.style.display=ruins?'block':'none';
+    nota.textContent=ruins?'❌ '+ruins+' planilha(s) em vermelho ficam de fora — corrija a exportação e traga de novo antes de substituir no Drive.':'';
+  }
+}
+
+async function valApply(){
+  const raws={};
+  VAL_STATE.forEach(it=>{ if(it.id&&it.id!=='rcaInd'&&it.res&&it.res.lv!=='err'&&it.raw) raws[it.id]=it.raw; });
+  if(!Object.keys(raws).length) return;
+  const btn=document.getElementById('val-apply');
+  btn.disabled=true; btn.textContent='⏳ Carregando…';
+  try{
+    await goProcessFromSheets({raws});
+  }finally{
+    valClose();
+    valRender();
+  }
+}
+
+// Arrastar e soltar
+(function(){
+  const z=document.getElementById('val-drop');
+  if(!z) return;
+  ['dragenter','dragover'].forEach(ev=>z.addEventListener(ev,e=>{
+    e.preventDefault(); z.style.borderColor='rgba(34,197,94,.8)'; z.style.background='rgba(34,197,94,.10)';
+  }));
+  ['dragleave','drop'].forEach(ev=>z.addEventListener(ev,e=>{
+    e.preventDefault(); z.style.borderColor='rgba(255,255,255,.3)'; z.style.background='rgba(255,255,255,.04)';
+  }));
+  z.addEventListener('drop',e=>{ if(e.dataTransfer&&e.dataTransfer.files&&e.dataTransfer.files.length) valFiles(e.dataTransfer.files); });
+})();
 
 // ── Configuração Supabase ──────────────────────────────────────────────────
 // Preencha após criar seu projeto em https://supabase.com
