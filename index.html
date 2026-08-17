@@ -276,7 +276,16 @@ body{background:var(--bg);color:var(--txt);font-size:13px;min-height:100vh}
       <button type="button" onclick="valClose()" style="background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:8px;padding:7px 14px;font-size:13px;font-weight:600;cursor:pointer">✕ Fechar</button>
     </div>
     <div style="color:rgba(255,255,255,.6);font-size:12px;line-height:1.5;margin-bottom:14px">
-      Selecione os arquivos que você exportou do sistema Martins. Eu identifico qual é qual, digo o que cada um vai carregar no painel e aviso se algum veio com o filtro errado. Só depois de ficar tudo verde vale a pena substituir no Drive.
+      Selecione os arquivos que você exportou do sistema Martins. Eu identifico qual é qual, digo o que cada um vai carregar no painel — e planilha errada não sobe, nem pro painel nem pro Drive. Depois de verde, dá pra mandar direto pro Drive com um clique, sem sair daqui.
+    </div>
+
+    <div style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.15);border-radius:10px;padding:11px 13px;margin-bottom:14px">
+      <div style="color:rgba(255,255,255,.85);font-size:12px;font-weight:600;margin-bottom:6px">Envio direto pro Drive — Client ID do Google</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <input id="fm-gcli-input" type="text" placeholder="Client ID (termina em .apps.googleusercontent.com)" style="flex:1 1 240px;background:rgba(0,0,0,.35);color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:7px;padding:7px 9px;font-size:12px">
+        <button type="button" onclick="_fmGcliSalvar()" style="padding:7px 13px;border-radius:7px;background:#3B82F6;color:#fff;border:none;cursor:pointer;font-size:12px;font-weight:600">Salvar</button>
+      </div>
+      <div id="fm-gcli-status" style="font-size:11px;margin-top:6px;color:rgba(255,255,255,.5)"></div>
     </div>
 
     <input type="file" accept=".xlsx,.xls,.csv" multiple id="val-input" style="display:none" onchange="valFiles(this.files)">
@@ -569,20 +578,201 @@ async function goProcessFromSheets(opts={}){
 // pega: Ranking GEGT_ exportado com o GE errado (o 77682 nao esta no arquivo) e
 // os dois exports chamados "Tabela Performance" trocados entre si.
 const VAL_SPECS=[
-  {id:'curr',    n:1, nome:'Parcial RCAs (semanal)',        drive:'1 - Parcial RCAs (semanal).xlsx',                       expo:'Tabela Performance — a GRANDE (~6 MB), nível RCA'},
-  {id:'gt',      n:2, nome:'Parcial GT Victor (semanal)',   drive:'2 - Parcial GT Victor (semanal).xlsx',                  expo:'Tabela Performance — a PEQUENA (~400 KB), nível GT'},
-  {id:'uf',      n:3, nome:'Ranking Maranhão (acumulado)',  drive:'3 - Ranking Maranhao (acumulado).xlsx',                 expo:'Ranking UF_ (pode vir com o Brasil inteiro)'},
-  {id:'winners', n:4, nome:'Ranking GT por Indústria',      drive:'4 - Ranking GT por Industria (acumulado).xlsx',         expo:'Ranking Industria_ — a PEQUENA (~107 KB), nível GT'},
-  {id:'gtRank',  n:5, nome:'Ranking Nacional GT',           drive:'5 - Ranking Nacional GT (todos os GEs).xlsx',           expo:'Ranking GEGT_ — exportar SEM filtro de GE'},
-  {id:'rcaRank', n:6, nome:'Ranking Nacional RCA',          drive:'6 - Ranking Nacional RCA.xlsx',                         expo:'Ranking Detalhado_'},
-  {id:'rcaInd',  n:7, nome:'Ranking RCA por Indústria',     drive:'7 - Ranking RCA por Industria (ainda nao usada).xlsx',  expo:'Ranking Industria_ — a GRANDE (~1,8 MB), nível RCA', off:true}
+  {id:'curr',    n:1, nome:'Parcial RCAs (semanal)',        drive:'1 - Parcial RCAs (semanal).xlsx',                       expo:'Tabela Performance — a GRANDE (~6 MB), nível RCA', driveId:'1-gyvQcqIcYeGKRCNXOwAYANrMcviIDsl'},
+  {id:'gt',      n:2, nome:'Parcial GT Victor (semanal)',   drive:'2 - Parcial GT Victor (semanal).xlsx',                  expo:'Tabela Performance — a PEQUENA (~400 KB), nível GT', driveId:'1eTiuD82IU7-tCzo_yI5OoUg_CQ6Jltt1'},
+  {id:'uf',      n:3, nome:'Ranking Maranhão (acumulado)',  drive:'3 - Ranking Maranhao (acumulado).xlsx',                 expo:'Ranking UF_ (pode vir com o Brasil inteiro)', driveId:'1qCq-Bmt3AkWZrpmmfma67hGcUZ9amICh'},
+  {id:'winners', n:4, nome:'Ranking GT por Indústria',      drive:'4 - Ranking GT por Industria (acumulado).xlsx',         expo:'Ranking Industria_ — a PEQUENA (~107 KB), nível GT', driveId:'1djEKOjMAuSU3IdlfCkHaYteL3HHqtrvd'},
+  {id:'gtRank',  n:5, nome:'Ranking Nacional GT',           drive:'5 - Ranking Nacional GT (todos os GEs).xlsx',           expo:'Ranking GEGT_ — exportar SEM filtro de GE', driveId:'1PG3r4gM3ZdKpTUmLgeAT9p-LuCk10gl3'},
+  {id:'rcaRank', n:6, nome:'Ranking Nacional RCA',          drive:'6 - Ranking Nacional RCA.xlsx',                         expo:'Ranking Detalhado_', driveId:'1PQAmVFId_B75Qd3J1yCzJ7QKp3OrgrKK'},
+  {id:'rcaInd',  n:7, nome:'Ranking RCA por Indústria',     drive:'7 - Ranking RCA por Industria (ainda nao usada).xlsx',  expo:'Ranking Industria_ — a GRANDE (~1,8 MB), nível RCA', off:true, driveId:'13BhfA6cEKnTiZgjEdjL2jyT9cRytHRSi'}
 ];
 const VAL_BY_ID={}; VAL_SPECS.forEach(s=>{VAL_BY_ID[s.id]=s;});
 // Pares que so o conteudo distingue (a presenca do codigo 77682 e fato, o nome do arquivo nao e)
 const VAL_PAIRS=[['curr','gt'],['winners','rcaInd'],['gtRank','rcaRank']];
 let VAL_STATE=[];
 
-function valOpen(){ document.getElementById('val-screen').style.display='block'; }
+// ============ ENVIO DIRETO PARA O DRIVE (substitui o arquivo de origem) ====
+// Mesmo mecanismo do painel Maquina de Vendas: login Google no navegador
+// (Google Identity Services) + upload resumivel via PATCH/PUT na API do
+// Drive. Aqui as fontes sao .xlsx comuns (nao Sheets nativo), entao o
+// upload troca os bytes do arquivo direto -- sem conversao, sem risco de
+// virgula virar separador decimal errado.
+//
+// Trava de seguranca: so sobe se a MESMA validacao que ja roda pra "Carregar
+// no painel" (_valCheck) nao estiver em vermelho. Planilha errada nunca
+// sobe, mesmo clicando no botao -- e a mesma checagem reaproveitada, nao uma
+// regra nova e separada que possa ficar desatualizada em relacao a outra.
+const FM_GDRIVE_SCOPE='https://www.googleapis.com/auth/drive';
+
+function _fmGcliId(){ try{ return (localStorage.getItem('fm_gcli_id')||'').trim(); }catch(e){ return ''; } }
+function _fmGcliStatus(){
+  const st=document.getElementById('fm-gcli-status');
+  if(!st) return;
+  const ok=!!_fmGcliId();
+  st.style.color=ok?'#86EFAC':'#FDE68A';
+  st.textContent=ok?'\u2713 Configurado neste aparelho.':'\u26A0 Sem Client ID: os bot\u00F5es "Subir pro Drive" ficam travados at\u00E9 configurar.';
+}
+function _fmGcliSalvar(){
+  const v=(document.getElementById('fm-gcli-input')||{}).value||'';
+  try{ localStorage.setItem('fm_gcli_id',v.trim()); }catch(e){}
+  _fmGTok=null; _fmGTokExp=0;
+  _fmGcliStatus();
+  valRender();
+}
+
+let _fmGTok=null, _fmGTokExp=0, _fmGTokenClient=null;
+
+function _fmGCarregarGIS(){
+  return new Promise((res,rej)=>{
+    if(window.google&&google.accounts&&google.accounts.oauth2) return res();
+    const s=document.createElement('script');
+    s.src='https://accounts.google.com/gsi/client'; s.async=true;
+    s.onload=()=>res();
+    s.onerror=()=>rej(new Error('n\u00E3o foi poss\u00EDvel carregar o login do Google (sem internet ou bloqueado pela rede).'));
+    document.head.appendChild(s);
+  });
+}
+
+// Token de uma hora, so em memoria: fechou a aba, precisa autorizar de novo.
+async function _fmGToken(){
+  if(_fmGTok&&Date.now()<_fmGTokExp-60000) return _fmGTok;
+  const cli=_fmGcliId();
+  if(!cli) throw new Error('Client ID do Google ainda n\u00E3o configurado nesta m\u00E1quina.');
+  await _fmGCarregarGIS();
+  return new Promise((res,rej)=>{
+    try{
+      _fmGTokenClient=google.accounts.oauth2.initTokenClient({
+        client_id:cli, scope:FM_GDRIVE_SCOPE,
+        callback:r=>{
+          if(r&&r.access_token){
+            _fmGTok=r.access_token;
+            _fmGTokExp=Date.now()+((r.expires_in||3600)*1000);
+            res(_fmGTok);
+          } else rej(new Error('autoriza\u00E7\u00E3o n\u00E3o conclu\u00EDda.'));
+        },
+        error_callback:e=>rej(new Error('autoriza\u00E7\u00E3o cancelada ou bloqueada'+(e&&e.type?' ('+e.type+')':'')+'.'))
+      });
+      _fmGTokenClient.requestAccessToken({prompt:''});
+    }catch(e){ rej(e); }
+  });
+}
+
+// Copia de seguranca antes de sobrescrever -- substituir apaga o que estava la.
+async function _fmGCopiaSeguranca(fileId,tok,rot){
+  const hoje=new Date();
+  const carimbo=hoje.toLocaleDateString('pt-BR').replace(/\//g,'-')+' '+
+    String(hoje.getHours()).padStart(2,'0')+'h'+String(hoje.getMinutes()).padStart(2,'0');
+  const r=await fetch('https://www.googleapis.com/drive/v3/files/'+fileId+'/copy?supportsAllDrives=true',{
+    method:'POST',
+    headers:{Authorization:'Bearer '+tok,'Content-Type':'application/json'},
+    body:JSON.stringify({name:'BACKUP '+(rot||'planilha')+' '+carimbo})
+  });
+  if(!r.ok) throw new Error('falhou ao criar a c\u00F3pia de seguran\u00E7a: '+(await r.text()).slice(0,180));
+  return (await r.json()).id;
+}
+
+function _fmMimeDe(nome){
+  const e=String(nome||'').toLowerCase().split('.').pop();
+  if(e==='csv')  return 'text/csv';
+  if(e==='tsv')  return 'text/tab-separated-values';
+  if(e==='xlsx') return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+  if(e==='xls')  return 'application/vnd.ms-excel';
+  return 'application/octet-stream';
+}
+
+// Upload resumivel (nao simples): as bases grandes passam dos 5 MB que o
+// uploadType=media aceita. XHR porque so ele reporta progresso de envio.
+// Metadata do PATCH fica vazia de proposito: aqui o destino ja e um .xlsx
+// comum, entao so trocamos os bytes -- nao pedimos pro Drive converter nada.
+function _fmGUploadResumivel(fileId,tok,blob,mime,onProg){
+  return new Promise(async(res,rej)=>{
+    let loc;
+    try{
+      const ini=await fetch('https://www.googleapis.com/upload/drive/v3/files/'+fileId+'?uploadType=resumable&supportsAllDrives=true',{
+        method:'PATCH',
+        headers:{Authorization:'Bearer '+tok,'Content-Type':'application/json; charset=UTF-8',
+                 'X-Upload-Content-Type':mime,'X-Upload-Content-Length':String(blob.size)},
+        body:JSON.stringify({})
+      });
+      if(!ini.ok) return rej(new Error('o Google recusou o in\u00EDcio do envio: '+(await ini.text()).slice(0,180)));
+      loc=ini.headers.get('Location');
+      if(!loc) return rej(new Error('o Google n\u00E3o devolveu o endere\u00E7o de envio.'));
+    }catch(e){ return rej(e); }
+
+    const x=new XMLHttpRequest();
+    x.open('PUT',loc,true);
+    x.setRequestHeader('Content-Type',mime);
+    x.upload.onprogress=e=>{ if(e.lengthComputable&&onProg) onProg(e.loaded/e.total); };
+    x.onload=()=>{ (x.status>=200&&x.status<300)?res():rej(new Error('o Google recusou o arquivo (HTTP '+x.status+'): '+String(x.responseText||'').slice(0,180))); };
+    x.onerror=()=>rej(new Error('a conex\u00E3o caiu durante o envio.'));
+    x.send(blob);
+  });
+}
+
+// Sobe o arquivo do item[idx] por cima da planilha real no Drive. So roda se
+// a validacao (a mesma que ja roda pra "Carregar no painel") nao estiver em
+// erro: planilha errada nunca sobe, mesmo clicando no botao.
+async function _fmSubir(idx){
+  const it=VAL_STATE[idx];
+  if(!it) return;
+  const spec=it.id?VAL_BY_ID[it.id]:null;
+  const lv=it.erro?'err':(it.res?it.res.lv:'err');
+  if(!spec||!spec.driveId||lv==='err'||!_fmGcliId()) return;
+  it.up={fase:'enviando',pct:0,msg:'Pedindo autoriza\u00E7\u00E3o ao Google...',erro:''};
+  valRender();
+  try{
+    const tok=await _fmGToken();
+    it.up.msg='Criando c\u00F3pia de seguran\u00E7a da planilha atual...'; valRender();
+    await _fmGCopiaSeguranca(spec.driveId,tok,spec.nome);
+    it.up.msg='Enviando '+it.nome+'...'; valRender();
+    const mime=_fmMimeDe(it.nome);
+    await _fmGUploadResumivel(spec.driveId,tok,it.file,mime,pct=>{
+      it.up.pct=pct;
+      const b=document.getElementById('fm-up-bar-'+idx);
+      if(b) b.style.width=(pct*100).toFixed(0)+'%';
+    });
+    it.up.fase='ok';
+    it.up.msg='Planilha substitu\u00EDda no Drive. O painel pega o dado novo na pr\u00F3xima vez que carregar por aqui.';
+  }catch(e){
+    it.up.fase='erro';
+    it.up.erro=(e&&e.message)?e.message:String(e);
+  }
+  valRender();
+}
+
+function _fmUploadBlocoHtml(it,idx,lv){
+  const spec=it.id?VAL_BY_ID[it.id]:null;
+  if(!spec||!spec.driveId) return '';
+  const up=it.up;
+  if(up&&up.fase==='enviando'){
+    return '<div style="margin-top:9px;border-top:1px solid rgba(255,255,255,.1);padding-top:9px">'
+      +'<div style="font-size:11.5px;color:rgba(255,255,255,.65);margin-bottom:6px">'+up.msg+'</div>'
+      +'<div style="height:6px;background:rgba(255,255,255,.12);border-radius:4px;overflow:hidden">'
+      +'<div id="fm-up-bar-'+idx+'" style="height:100%;width:'+(up.pct*100).toFixed(0)+'%;background:#60A5FA;transition:width .15s linear"></div></div></div>';
+  }
+  if(up&&up.fase==='ok'){
+    return '<div style="margin-top:9px;border-top:1px solid rgba(255,255,255,.1);padding-top:9px;color:#86EFAC;font-size:12px;line-height:1.5">\u2705 '+up.msg+'</div>';
+  }
+  if(up&&up.fase==='erro'){
+    return '<div style="margin-top:9px;border-top:1px solid rgba(255,255,255,.1);padding-top:9px">'
+      +'<div style="color:#FCA5A5;font-size:12px;line-height:1.5">\u274C N\u00E3o subiu: '+up.erro+'</div>'
+      +'<button type="button" onclick="_fmSubir('+idx+')" style="margin-top:7px;padding:6px 12px;border-radius:7px;background:#3B82F6;color:#fff;border:none;cursor:pointer;font-size:12px;font-weight:600">Tentar de novo</button></div>';
+  }
+  const bloqueado = lv==='err' || !_fmGcliId();
+  const motivo = lv==='err' ? 'Corrija a planilha (est\u00E1 em vermelho) antes de subir.' : (!_fmGcliId() ? 'Configure o Client ID do Google acima primeiro.' : '');
+  return '<div style="margin-top:9px;border-top:1px solid rgba(255,255,255,.1);padding-top:9px;display:flex;align-items:center;gap:9px;flex-wrap:wrap">'
+    +'<button type="button" onclick="_fmSubir('+idx+')" '+(bloqueado?'disabled ':'')+'style="padding:7px 13px;border-radius:7px;background:'+(bloqueado?'rgba(255,255,255,.12)':'#16A34A')+';color:'+(bloqueado?'rgba(255,255,255,.4)':'#fff')+';border:none;cursor:'+(bloqueado?'not-allowed':'pointer')+';font-size:12px;font-weight:700">\u2601\uFE0F Subir pro Drive</button>'
+    +'<a href="https://docs.google.com/spreadsheets/d/'+spec.driveId+'/edit" target="_blank" rel="noopener" style="font-size:11.5px;color:rgba(147,197,253,.9);text-decoration:none">Abrir planilha no Drive \u2197</a>'
+    +(motivo?'<span style="font-size:11px;color:rgba(255,255,255,.45)">'+motivo+'</span>':'')
+    +'</div>';
+}
+
+function valOpen(){
+  document.getElementById('val-screen').style.display='block';
+  const inp=document.getElementById('fm-gcli-input');
+  if(inp) inp.value=_fmGcliId();
+  _fmGcliStatus();
+}
 function valClose(){ document.getElementById('val-screen').style.display='none'; }
 
 function _valNorm(s){ return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
@@ -810,7 +1000,7 @@ async function valFiles(fileList){
   list.innerHTML='<div style="color:rgba(255,255,255,.7);font-size:13px;padding:12px">⏳ Lendo '+arr.length+' arquivo(s)…</div>';
   const items=[];
   for(const f of arr){
-    const it={file:f,nome:f.name,tam:f.size,raw:null,id:null,aviso:null,shape:{nLin:0,has77:false},erro:null};
+    const it={file:f,nome:f.name,tam:f.size,raw:null,id:null,aviso:null,shape:{nLin:0,has77:false},erro:null,up:null};
     try{
       it.raw=await valReadRaw(f);
       const idf=_valIdentify(it.raw,f.name);
@@ -869,6 +1059,7 @@ function valRender(){
     h+='<option value=""'+(it.id?'':' selected')+'>— não identificada —</option>';
     VAL_SPECS.forEach(s=>{ h+='<option value="'+s.id+'"'+(it.id===s.id?' selected':'')+'>'+s.n+' — '+s.nome+'</option>'; });
     h+='</select></div>';
+    h+=_fmUploadBlocoHtml(it,idx,lv);
     h+='</div>';
   });
 
