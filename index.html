@@ -839,26 +839,35 @@ function _valByShape(raw){
   const h=_valHeader(raw);
   if(!h) return {id:null,h:null,has77:false,nLin:0};
   const c=h.cols, cf=(c.func!=null?c.func:0);
-  let has77=false,nLin=0,nGT=0,nRCA=0;
+  let has77=false,nLin=0,nGT=0,nRCA=0,rank1=0;
+  const ufs=new Set();
+  const re77=new RegExp('(^|\\D)'+MY_GT_CODE+'(\\D|$)');
   for(let i=h.hRow+1;i<raw.length;i++){
     const r=raw[i]; if(!r) continue;
     const v=String(r[cf]||'');
     if(v.trim())nLin++;
-    if(!has77&&v.indexOf(MY_GT_CODE)>=0)has77=true;
+    if(!has77&&re77.test(v))has77=true;
     if(c.cargo!=null){
       const cg=String(r[c.cargo]||'').trim().toUpperCase();
       if(cg==='GT')nGT++; else if(cg)nRCA++;
     }
+    if(c.uf!=null){ const u=String(r[c.uf]||'').trim().toUpperCase(); if(u)ufs.add(u); }
+    if(c.rank!=null && String(r[c.rank]||'').replace(/\D/g,'')==='1') rank1++;
   }
   // nivel do arquivo pela coluna Cargo; sem ela, cai no 77682
   const nivel = (nGT+nRCA)>0 ? (nGT>nRCA?'GT':'RCA') : (has77?'GT':'RCA');
   const ehGT = nivel==='GT';
+  // A planilha 3 (Ranking Maranhao) e um ranking POR ESTADO: ou vem de um
+  // estado so (uma UF), ou vem do Brasil todo mas a colocacao REINICIA a cada
+  // estado (varias linhas "1o"). Um ranking NACIONAL que so carrega uma coluna
+  // "UF" solta tem varias UFs e um unico "1o" -> esse nao e a planilha 3.
+  const ehPorEstado = c.uf!=null && (ufs.size===1 || rank1>1);
   let id;
   if(c.indi!=null||c.ocd!=null) id=has77?'gt':'curr';
-  else if(c.uf!=null)           id='uf';
+  else if(ehPorEstado)          id='uf';
   else if(c.ind!=null)          id=ehGT?'winners':'rcaInd';
   else                          id=ehGT?'gtRank':'rcaRank';
-  return {id,h,has77,nLin,nivel,nGT,nRCA};
+  return {id,h,has77,nLin,nivel,nGT,nRCA,ufs:ufs.size,rank1};
 }
 
 function _valSamePair(a,b){ return VAL_PAIRS.some(p=>p.indexOf(a)>=0&&p.indexOf(b)>=0); }
@@ -873,14 +882,10 @@ function _valIdentify(raw,nome){
       // O conteudo manda: 77682 presente/ausente e fato, nome de arquivo nao e.
       id=shape.id;
       aviso='O nome do arquivo parece "'+VAL_BY_ID[byName].nome+'", mas o conteudo é de "'+VAL_BY_ID[shape.id].nome+'". Segui o conteúdo. Confira se você não trocou os dois exports.';
-    }else if(shape.id==='uf'){
-      // Export nacional as vezes vem com uma coluna "UF" solta e a estrutura
-      // parece a planilha 3. Se o NOME diz outra coisa, vale o nome -- senao a
-      // planilha 3 toma a vaga da nacional e some um cartao.
-      id=byName;
-      aviso='Este arquivo tem uma coluna "UF" mas o nome indica "'+VAL_BY_ID[byName].nome+'". Segui o nome. Se for mesmo o Ranking Maranhão, escolha no seletor.';
     }else{
-      id=shape.id;  // conteudo sempre manda: nao deixar isso ficar vermelho
+      // A estrutura manda. Como o _valByShape ja separa "ranking por estado" de
+      // "ranking nacional", um 'uf' aqui e confiavel.
+      id=shape.id;
       aviso='O nome do arquivo diz "'+VAL_BY_ID[byName].nome+'", mas pelas colunas isto é "'+VAL_BY_ID[shape.id].nome+'". Segui o conteúdo. Se não for isso, escolha no seletor abaixo.';
     }
   }
