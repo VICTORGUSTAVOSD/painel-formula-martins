@@ -381,7 +381,7 @@ const RCA_COLORS = ['#1D4ED8','#7C3AED','#0D9488','#B45309','#9333EA','#0369A1',
 
 
 // ============ FILE UPLOAD - ROBUST VERSION ============
-const G = {curr:null, prev:null, uf:null, prevUf:null, gt:null, prevGt:null, winners:null, gtRank:null, rcaRank:null, files:{curr:null, prev:null, uf:null}, updatedAt:null};
+const G = {curr:null, prev:null, uf:null, prevUf:null, gt:null, prevGt:null, winners:null, gtRank:null, rcaRank:null, rcaInd:null, files:{curr:null, prev:null, uf:null}, updatedAt:null};
 
 // ============ PERSISTÊNCIA (localStorage + Supabase sync) ============
 const STORE_KEY = 'painel_formula_martins_v1';
@@ -398,6 +398,7 @@ const GS_UF_URL      = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQw6qCAa
 const GS_WINNERS_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS7kh9rWJxHzA4gbCkAt71N03y5sSQQSqANF4djfnvG0Hhm9OGJ8H0IkgvjGXrzzw/pub?output=csv';  // GT ranking por industria (ganhadores)
 const GS_GT_RANK_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRcDNk-jPloMC-yLEHXbL44FN5hJDk3Hd1JQKcW_ru86iGhjY3p2n0By_fR9D0lkw/pub?output=csv';  // ranking geral nacional GT (183 GTs)
 const GS_RCA_RANK_URL= 'https://docs.google.com/spreadsheets/d/e/2PACX-1vTP3GrrEKI1lUuhG2W0SAqcgHyPsHls6vAzH6ez7UoGO_4CICSY-cLuLb6M7EHB6g/pub?output=csv';  // ranking geral nacional RCA (3433 reps)
+const GS_RCA_IND_URL = 'https://docs.google.com/spreadsheets/d/1yiDLwxiTxfhQdsQB9Iv8Jo5FxRUVGRrKieFg8AAC7gI/export?format=csv&gid=1955981768';  // planilha 7: ranking por industria nivel RCA
 const GS_CONFIGURED  = !GS_CURR_URL.includes('COLE_URL');
 const GT_ACUMULADO_PTS  = 53.533; // fallback — sobrescrito pelo GS_GT_RANK_URL ao carregar
 const GT_RANK_NACIONAL  = 32;     // fallback — sobrescrito pelo GS_GT_RANK_URL ao carregar
@@ -475,7 +476,7 @@ async function goProcessFromSheets(opts={}){
   if(stat){stat.style.display='block'; stat.textContent='📊 Atualizando dados…';}
   if(errBox) errBox.style.display='none';
   const fails=[];
-  const TOTAL=6;
+  const TOTAL=7;
   // opts.raws: planilhas lidas do computador pelo validador. O que vier por
   // arquivo nao passa pela rede; o que faltar continua vindo do CSV do Drive.
   const _ov=(opts&&opts.raws)||{};
@@ -545,6 +546,13 @@ async function goProcessFromSheets(opts={}){
     if(rawRcaRank) newRcaRank=buildRCARankData(rawRcaRank);
     else if(stored&&stored.rcaRank) newRcaRank=stored.rcaRank;
 
+    // Ranking por industria nivel RCA (planilha 7) — alimenta a linha "por
+    // fornecedor" da mensagem do RCA (a planilha 4 e nivel GT e nao casa o time).
+    let newRcaInd=null;
+    const rawRcaInd=await _src('rcaInd','Ranking RCA por indústria',GS_RCA_IND_URL,'🏭 Carregando ranking por indústria dos RCAs…');
+    if(rawRcaInd) newRcaInd=buildWinnersData(rawRcaInd);
+    else if(stored&&stored.rcaInd) newRcaInd=stored.rcaInd;
+
     // Sem parcial nenhuma (nem nova, nem salva) nao ha painel para mostrar
     if(!newCurr) throw new Error('Não foi possível carregar a parcial dos RCAs'+(fails.length?' ('+fails.join(', ')+')':'')+'.');
 
@@ -553,6 +561,7 @@ async function goProcessFromSheets(opts={}){
     G.uf=newUf; G.prevUf=newPrevUf;
     G.winners=newWinners;
     G.gtRank=newGtRank; G.rcaRank=newRcaRank;
+    G.rcaInd=newRcaInd;
     G.team=teamCodes&&teamCodes.size?[...teamCodes]:(G.team||null);
     G.updatedAt=new Date().toISOString();
     G.teamAt=_teamFromUf?G.updatedAt:(G.teamAt||(stored&&stored.teamAt)||null);
@@ -586,7 +595,7 @@ const VAL_SPECS=[
   {id:'winners', n:4, nome:'Ranking GT por Indústria',      drive:'4 - Ranking GT por Industria (acumulado).xlsx',         expo:'Ranking Industria_ — a PEQUENA (~107 KB), nível GT', driveId:'1djEKOjMAuSU3IdlfCkHaYteL3HHqtrvd'},
   {id:'gtRank',  n:5, nome:'Ranking Nacional GT',           drive:'5 - Ranking Nacional GT (todos os GEs).xlsx',           expo:'Ranking GEGT_ — exportar SEM filtro de GE', driveId:'1PG3r4gM3ZdKpTUmLgeAT9p-LuCk10gl3'},
   {id:'rcaRank', n:6, nome:'Ranking Nacional RCA',          drive:'6 - Ranking Nacional RCA.xlsx',                         expo:'Ranking Detalhado_', driveId:'1PQAmVFId_B75Qd3J1yCzJ7QKp3OrgrKK'},
-  {id:'rcaInd',  n:7, nome:'Ranking RCA por Indústria',     drive:'7 - Ranking RCA por Industria (ainda nao usada).xlsx',  expo:'Ranking Industria_ — a GRANDE (~1,8 MB), nível RCA', off:true, driveId:'13BhfA6cEKnTiZgjEdjL2jyT9cRytHRSi'}
+  {id:'rcaInd',  n:7, nome:'Ranking RCA por Indústria',     drive:'7 - Ranking RCA por Industria (ainda nao usada).xlsx',  expo:'Ranking Industria_ — a GRANDE (~1,8 MB), nível RCA', driveId:'13BhfA6cEKnTiZgjEdjL2jyT9cRytHRSi'}
 ];
 const VAL_BY_ID={}; VAL_SPECS.forEach(s=>{VAL_BY_ID[s.id]=s;});
 // Pares que so o conteudo distingue (a presenca do codigo 77682 e fato, o nome do arquivo nao e)
@@ -1015,8 +1024,7 @@ function _valCheck(item,items){
     else if(item.id==='rcaInd'){
       const d=buildWinnersData(raw);
       const nT=Object.keys(d.myTeam||{}).length;
-      add('warn','Esta planilha ainda NÃO é lida pelo painel (é a 7ª fonte, pendente de ligar no código). Guarde no Drive assim mesmo.');
-      add(nT?'ok':'err',nT+' RCAs do seu time com ranking por indústria aqui dentro.');
+      add(nT?'ok':'err',nT+' RCAs do seu time com ranking por indústria (alimenta a linha "por fornecedor" da mensagem do RCA).');
       if(item.shape.has77) add('warn','O GT '+MY_GT_CODE+' aparece aqui — se este arquivo for de nível GT, ele é a planilha 4, não a 7.');
     }
     else add('err','Não consegui identificar que planilha é esta.');
@@ -1115,7 +1123,7 @@ function valRender(){
   }
   list.innerHTML=h;
 
-  const usaveis=VAL_STATE.filter(i=>i.id&&i.id!=='rcaInd'&&i.res&&i.res.lv!=='err');
+  const usaveis=VAL_STATE.filter(i=>i.id&&i.res&&i.res.lv!=='err');
   const btn=document.getElementById('val-apply');
   acts.style.display='block';
   if(!usaveis.length||rep.length){
@@ -1135,7 +1143,7 @@ function valRender(){
 
 async function valApply(){
   const raws={};
-  VAL_STATE.forEach(it=>{ if(it.id&&it.id!=='rcaInd'&&it.res&&it.res.lv!=='err'&&it.raw) raws[it.id]=it.raw; });
+  VAL_STATE.forEach(it=>{ if(it.id&&it.res&&it.res.lv!=='err'&&it.raw) raws[it.id]=it.raw; });
   if(!Object.keys(raws).length) return;
   const btn=document.getElementById('val-apply');
   btn.disabled=true; btn.textContent='⏳ Carregando…';
@@ -1221,7 +1229,7 @@ function saveStore(){
       prevUf:G.prevUf||null,
       gt:G.gt||null, prevGt:G.prevGt||null,
       winners:G.winners||null,
-      gtRank:G.gtRank||null, rcaRank:G.rcaRank||null,
+      gtRank:G.gtRank||null, rcaRank:G.rcaRank||null, rcaInd:G.rcaInd||null,
       teamAt:G.teamAt||null,
       updatedAt:G.updatedAt||new Date().toISOString()
     };
@@ -1738,11 +1746,12 @@ function generateMsg(rca,curr,prev,rankCurr,rankPrev,totalRCAs){
     const natLbl=_natE.rank<=3?`Top 3 nacional: 🏆 ${_natE.rank}° — você está no pódio!`:`Top 3 nacional: ${_natE.rank}° (${_natE.pts.toFixed(2)} pts acum.) — continue pontuando`;
     _crit.push({score:_natE.rank<=3?900:Math.max(0,50-_natE.rank/50),lbl:`🌎 ${natLbl}`});
   }
-  if(G.winners&&G.winners.myTeam&&G.winners.myTeam[rca]){
-    const _supArr=Object.entries(G.winners.myTeam[rca].suppliers||{}).sort((a,b)=>a[1].rank-b[1].rank);
+  const _wi=_rcaIndSrc();
+  if(_wi&&_wi.myTeam&&_wi.myTeam[rca]){
+    const _supArr=Object.entries(_wi.myTeam[rca].suppliers||{}).sort((a,b)=>a[1].rank-b[1].rank);
     if(_supArr.length>0){
       const[_bInd,{rank:_sR,pts:_sP}]=_supArr[0];
-      const _byS=G.winners.bySupplier[_bInd]||[];
+      const _byS=_wi.bySupplier[_bInd]||[];
       const _lPts=_byS.length>0?_byS[0].pts:_sP;
       const _sGap=Math.max(0,_lPts-_sP);
       const _wk=curr.inds?curr.inds[_bInd]:null;
@@ -2645,6 +2654,12 @@ function buildWinnersData(raw){
   return{bySupplier,myTeam,nationalRanking,victorGT};
 }
 
+// Colocacao POR INDUSTRIA de cada RCA: usa a planilha 7 (nivel RCA) quando ela
+// esta carregada; senao cai na planilha 4 (nivel GT), onde o time nao casa.
+function _rcaIndSrc(){
+  return (G.rcaInd&&G.rcaInd.myTeam&&Object.keys(G.rcaInd.myTeam).length)?G.rcaInd:G.winners;
+}
+
 // ============ TAB GANHADORES POR FORNECEDOR ============
 let _winnersMode=0; // 0=por indústria A-Z  1=melhor da equipe  2=por colocação
 
@@ -2763,7 +2778,7 @@ function renderGoals(){
   const ranked=[...rcas].sort((a,b)=>curr.rcas[b].total-curr.rcas[a].total);
   const regRank={};
   ranked.forEach((rca,i)=>{regRank[rca]=i+1;});
-  const{myTeam}=G.winners;
+  const{myTeam}=_rcaIndSrc();
 
   function gBadge(rank){
     if(rank===1)    return`<span class="win-badge win-b-gold">🏆 1° lugar</span>`;
@@ -3783,7 +3798,7 @@ function openSavedDashboard(){
   const s=loadStore();
   if(!s || !s.curr){ return false; }
   G.curr=s.curr; G.prev=s.prev||null; G.uf=s.uf||null; G.prevUf=s.prevUf||null;
-  G.gt=s.gt||null; G.prevGt=s.prevGt||null; G.winners=s.winners||null; G.gtRank=s.gtRank||null; G.rcaRank=s.rcaRank||null; G.updatedAt=s.updatedAt||null;
+  G.gt=s.gt||null; G.prevGt=s.prevGt||null; G.winners=s.winners||null; G.gtRank=s.gtRank||null; G.rcaRank=s.rcaRank||null; G.rcaInd=s.rcaInd||null; G.updatedAt=s.updatedAt||null;
   try{
     renderDashboard();
     document.getElementById('upload-screen').style.display='none';
@@ -3802,7 +3817,7 @@ window.addEventListener('DOMContentLoaded', async function(){
     const s=loadStore();
     if(s && s.curr){
       G.curr=s.curr; G.prev=s.prev||null; G.uf=s.uf||null; G.prevUf=s.prevUf||null;
-      G.gt=s.gt||null; G.prevGt=s.prevGt||null; G.winners=s.winners||null; G.gtRank=s.gtRank||null; G.rcaRank=s.rcaRank||null; G.updatedAt=s.updatedAt||null;
+      G.gt=s.gt||null; G.prevGt=s.prevGt||null; G.winners=s.winners||null; G.gtRank=s.gtRank||null; G.rcaRank=s.rcaRank||null; G.rcaInd=s.rcaInd||null; G.updatedAt=s.updatedAt||null;
       G.team=s.team||null;
       G.teamAt=s.teamAt||null;
       document.getElementById('upload-screen').style.display='none';
