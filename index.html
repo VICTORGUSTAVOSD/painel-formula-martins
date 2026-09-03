@@ -838,7 +838,7 @@ function _valByName(nome){
   if(/ranking\s*uf|maranhao|(^|\D)3\s*-\s*ranking/.test(s)) return 'uf';
   if(/gt\s*-\s*r\s*industria|gt\s*por\s*industria|(^|\D)4\s*-\s*ranking/.test(s)) return 'winners';
   if(/gegt|nacional\s*gt|(^|\D)5\s*-\s*ranking/.test(s)) return 'gtRank';
-  if(/detalhado|nacional\s*rca|(^|\D)6\s*-\s*ranking/.test(s)) return 'rcaRank';
+  if(/nacional\s*rca|(^|\D)6\s*-\s*ranking/.test(s)) return 'rcaRank';  // "detalhado" e nome ambiguo (serve p/ vaga 5 e 6) -> deixa o conteudo decidir
   if(/rca\s*-\s*r\s*industria|rca\s*por\s*industria|(^|\D)7\s*-\s*ranking/.test(s)) return 'rcaInd';
   return null;
 }
@@ -1060,10 +1060,35 @@ async function valFiles(fileList){
   valRun();
 }
 
+// Se cair mais de um arquivo na mesma vaga, escolhe o melhor (verde > amarelo >
+// vermelho; empate por nº do time achado, depois por nº de linhas) e marca os
+// outros como it.extra -- ficam de canto, nao sobem e nao travam nada.
+function _valDedup(){
+  const pontua=it=>{
+    const lv=it.erro?'err':(it.res?it.res.lv:'err');
+    const base=lv==='ok'?2:lv==='warn'?1:0;
+    const txt=it.res?it.res.linhas.map(l=>l.txt).join(' '):'';
+    const m=txt.match(/(\d+)\s*(?:RCAs?)?\s*(?:do (?:seu )?time|são do seu time)/i);
+    return base*1e7 + (m?+m[1]:0)*1e3 + ((it.shape&&it.shape.nLin)||0);
+  };
+  const grupos={};
+  VAL_STATE.forEach(it=>{ it.extra=false; if(it.id)(grupos[it.id]=grupos[it.id]||[]).push(it); });
+  Object.values(grupos).forEach(g=>{
+    if(g.length<2)return;
+    g.sort((a,b)=>pontua(b)-pontua(a));
+    g.slice(1).forEach(it=>{it.extra=true;});
+  });
+}
+
 function valRun(){
-  // cartoes sempre na ordem das vagas (1..7); nao-identificados por ultimo
-  VAL_STATE.sort((a,b)=>((a.id&&VAL_BY_ID[a.id])?VAL_BY_ID[a.id].n:99)-((b.id&&VAL_BY_ID[b.id])?VAL_BY_ID[b.id].n:99));
   VAL_STATE.forEach(it=>{ it.res=it.erro?null:_valCheck(it,VAL_STATE); });
+  _valDedup();
+  // ordem das vagas (1..7); dentro da vaga o escolhido vem antes do extra
+  VAL_STATE.sort((a,b)=>{
+    const na=(a.id&&VAL_BY_ID[a.id])?VAL_BY_ID[a.id].n:99;
+    const nb=(b.id&&VAL_BY_ID[b.id])?VAL_BY_ID[b.id].n:99;
+    return na-nb || (a.extra?1:0)-(b.extra?1:0);
+  });
   valRender();
 }
 
@@ -1082,6 +1107,13 @@ function valRender(){
   const COR={ok:'#86EFAC',warn:'#FDE68A',err:'#FCA5A5',info:'rgba(255,255,255,.62)'};
   let h='';
   VAL_STATE.forEach((it,idx)=>{
+    if(it.extra){
+      const se=it.id?VAL_BY_ID[it.id]:null;
+      h+='<div style="border:1px dashed rgba(255,255,255,.18);border-radius:10px;padding:8px 12px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;gap:8px">';
+      h+='<div style="color:rgba(255,255,255,.5);font-size:12px;min-width:0;word-break:break-all"><span style="opacity:.85">↩︎ Extra</span> — '+it.nome+(se?' <span style="opacity:.7">(seria a vaga '+se.n+', mas escolhi outro arquivo mais completo — este não sobe)</span>':' <span style="opacity:.7">(não identificada)</span>')+'</div>';
+      h+='<button type="button" onclick="valRemove('+idx+')" title="Tirar da lista" style="flex:none;background:none;border:none;color:rgba(255,255,255,.4);font-size:15px;cursor:pointer;line-height:1">✕</button>';
+      h+='</div>'; return;
+    }
     const spec=it.id?VAL_BY_ID[it.id]:null;
     const lv=it.erro?'err':(it.res?it.res.lv:'err');
     const brd=lv==='err'?'rgba(248,113,113,.55)':lv==='warn'?'rgba(253,224,71,.5)':'rgba(34,197,94,.5)';
@@ -1116,24 +1148,23 @@ function valRender(){
     h+='<div style="border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.04);border-radius:12px;padding:12px 14px;color:rgba(255,255,255,.6);font-size:12px;line-height:1.6">';
     h+='<strong style="color:rgba(255,255,255,.8)">Não trouxe:</strong> '+faltam.map(s=>s.n+' — '+s.nome).join(' · ')+'.<br>Sem problema: essas continuam vindo do Drive quando você carregar.</div>';
   }
-  const dup=VAL_STATE.filter(i=>i.id).map(i=>i.id);
-  const rep=[...new Set(dup.filter((v,i)=>dup.indexOf(v)!==i))];
-  if(rep.length){
-    h+='<div style="border:1px solid rgba(248,113,113,.5);background:rgba(248,113,113,.1);border-radius:12px;padding:12px 14px;color:#FCA5A5;font-size:12px;margin-top:10px">❌ Dois arquivos marcados como a mesma planilha ('+rep.map(r=>VAL_BY_ID[r].nome).join(', ')+'). Acerte no seletor antes de carregar.</div>';
+  const nExtra=VAL_STATE.filter(i=>i.extra).length;
+  if(nExtra){
+    h+='<div style="border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.04);border-radius:12px;padding:10px 14px;color:rgba(255,255,255,.55);font-size:12px;margin-top:6px">↩︎ '+nExtra+' arquivo(s) repetido(s) na mesma vaga — usei o mais completo de cada e deixei o resto de canto. Não precisa fazer nada.</div>';
   }
   list.innerHTML=h;
 
-  const usaveis=VAL_STATE.filter(i=>i.id&&i.res&&i.res.lv!=='err');
+  const usaveis=VAL_STATE.filter(i=>i.id&&!i.extra&&i.res&&i.res.lv!=='err');
   const btn=document.getElementById('val-apply');
   acts.style.display='block';
-  if(!usaveis.length||rep.length){
+  if(!usaveis.length){
     btn.disabled=true; btn.style.opacity='.45'; btn.style.cursor='not-allowed';
-    btn.textContent=rep.length?'Resolva a duplicidade acima':'Nenhuma planilha válida para carregar';
+    btn.textContent='Nenhuma planilha válida para carregar';
   }else{
     btn.disabled=false; btn.style.opacity='1'; btn.style.cursor='pointer';
     btn.textContent='✅ Carregar no painel com '+usaveis.length+' planilha(s) deste computador';
   }
-  const ruins=VAL_STATE.filter(i=>i.erro||(i.res&&i.res.lv==='err')).length;
+  const ruins=VAL_STATE.filter(i=>!i.extra&&(i.erro||(i.res&&i.res.lv==='err'))).length;
   const nota=document.getElementById('val-nota-erro');
   if(nota){
     nota.style.display=ruins?'block':'none';
@@ -1143,7 +1174,7 @@ function valRender(){
 
 async function valApply(){
   const raws={};
-  VAL_STATE.forEach(it=>{ if(it.id&&it.res&&it.res.lv!=='err'&&it.raw) raws[it.id]=it.raw; });
+  VAL_STATE.forEach(it=>{ if(it.id&&!it.extra&&it.res&&it.res.lv!=='err'&&it.raw) raws[it.id]=it.raw; });
   if(!Object.keys(raws).length) return;
   const btn=document.getElementById('val-apply');
   btn.disabled=true; btn.textContent='⏳ Carregando…';
