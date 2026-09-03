@@ -578,13 +578,13 @@ async function goProcessFromSheets(opts={}){
 // pega: Ranking GEGT_ exportado com o GE errado (o 77682 nao esta no arquivo) e
 // os dois exports chamados "Tabela Performance" trocados entre si.
 const VAL_SPECS=[
-  {id:'curr',    n:1, nome:'Parcial do Mês - RCAs',        drive:'Parcial Mês.xlsx',                       expo:'Tabela Performance — a GRANDE (~6 MB), nível RCA', driveId:'1-gyvQcqIcYeGKRCNXOwAYANrMcviIDsl'},
-  {id:'gt',      n:2, nome:'Parcial do Mês - GT Victor',   drive:'GT.xlsx',                  expo:'Tabela Performance — a PEQUENA (~400 KB), nível GT', driveId:'1eTiuD82IU7-tCzo_yI5OoUg_CQ6Jltt1'},
-  {id:'uf',      n:3, nome:'Ranking Maranhão (acumulado)',  drive:'Ranking UF_.xlsx',                 expo:'Ranking UF_ (pode vir com o Brasil inteiro)', driveId:'1qCq-Bmt3AkWZrpmmfma67hGcUZ9amICh'},
-  {id:'winners', n:4, nome:'Ranking GT por Indústria',      drive:'GT - R Industria).xlsx',         expo:'Ranking Industria_ — a PEQUENA (~107 KB), nível GT', driveId:'1djEKOjMAuSU3IdlfCkHaYteL3HHqtrvd'},
-  {id:'gtRank',  n:5, nome:'Ranking Nacional GT',           drive:'R NACIONAL GT.xlsx',           expo:'Ranking GEGT_ — exportar SEM filtro de GE', driveId:'1PG3r4gM3ZdKpTUmLgeAT9p-LuCk10gl3'},
-  {id:'rcaRank', n:6, nome:'Ranking Nacional RCA',          drive:'R NACIONAL RCA.xlsx',                         expo:'Ranking Detalhado_', driveId:'1PQAmVFId_B75Qd3J1yCzJ7QKp3OrgrKK'},
-  {id:'rcaInd',  n:7, nome:'Ranking RCA por Indústria',     drive:'RCA - R Industria_.xlsx',  expo:'Ranking Industria_ — a GRANDE (~1,8 MB), nível RCA', off:true, driveId:'13BhfA6cEKnTiZgjEdjL2jyT9cRytHRSi'}
+  {id:'curr',    n:1, nome:'Parcial do Mês - RCAs',        drive:'1 - Parcial do Mês (RCAs).xlsx',                       expo:'Tabela Performance — a GRANDE (~6 MB), nível RCA', driveId:'1-gyvQcqIcYeGKRCNXOwAYANrMcviIDsl'},
+  {id:'gt',      n:2, nome:'Parcial do Mês - GT Victor',   drive:'2 - Parcial do Mês (GT Victor).xlsx',                  expo:'Tabela Performance — a PEQUENA (~400 KB), nível GT', driveId:'1eTiuD82IU7-tCzo_yI5OoUg_CQ6Jltt1'},
+  {id:'uf',      n:3, nome:'Ranking Maranhão (acumulado)',  drive:'3 - Ranking Maranhao (acumulado).xlsx',                 expo:'Ranking UF_ (pode vir com o Brasil inteiro)', driveId:'1qCq-Bmt3AkWZrpmmfma67hGcUZ9amICh'},
+  {id:'winners', n:4, nome:'Ranking GT por Indústria',      drive:'4 - Ranking GT por Industria (acumulado).xlsx',         expo:'Ranking Industria_ — a PEQUENA (~107 KB), nível GT', driveId:'1djEKOjMAuSU3IdlfCkHaYteL3HHqtrvd'},
+  {id:'gtRank',  n:5, nome:'Ranking Nacional GT',           drive:'5 - Ranking Nacional GT (todos os GEs).xlsx',           expo:'Ranking GEGT_ — exportar SEM filtro de GE', driveId:'1PG3r4gM3ZdKpTUmLgeAT9p-LuCk10gl3'},
+  {id:'rcaRank', n:6, nome:'Ranking Nacional RCA',          drive:'6 - Ranking Nacional RCA.xlsx',                         expo:'Ranking Detalhado_', driveId:'1PQAmVFId_B75Qd3J1yCzJ7QKp3OrgrKK'},
+  {id:'rcaInd',  n:7, nome:'Ranking RCA por Indústria',     drive:'7 - Ranking RCA por Industria (ainda nao usada).xlsx',  expo:'Ranking Industria_ — a GRANDE (~1,8 MB), nível RCA', off:true, driveId:'13BhfA6cEKnTiZgjEdjL2jyT9cRytHRSi'}
 ];
 const VAL_BY_ID={}; VAL_SPECS.forEach(s=>{VAL_BY_ID[s.id]=s;});
 // Pares que so o conteudo distingue (a presenca do codigo 77682 e fato, o nome do arquivo nao e)
@@ -911,6 +911,7 @@ function _valCheck(item,items){
     if(item.id==='curr'){
       const tc=_valTeamCodes(items);
       if(!tc||!tc.size){ add('err','Não sei quais são os códigos do seu time. Traga junto a planilha 3 (Ranking Maranhão) ou carregue o painel uma vez pelo Drive antes.'); return out; }
+      if(!items.some(x=>x.id==='uf'&&x.raw)) add('warn','Você não trouxe o Ranking Maranhão (planilha 3) nesta leva — a lista do seu time veio da última carga. Se alguém entrou ou saiu do time, traga a planilha 3 junto para a parcial filtrar certo.');
       const d=buildData(raw,false,tc);
       const nR=Object.keys(d.rcas||{}).length;
       if(!nR) add('err','Nenhum RCA do seu time foi encontrado. Este arquivo não é a parcial dos RCAs, ou veio de outro período/gestor.');
