@@ -487,6 +487,7 @@ async function goProcessFromSheets(opts={}){
     // usados para filtrar a parcial (que nao tem coluna Gestor).
     const rawUf=await _src('uf','Ranking Maranhão',GS_UF_URL,'🏅 Buscando ranking do estado…');
     let teamCodes=extractTeamCodes(rawUf);
+    const _teamFromUf=!!(teamCodes&&teamCodes.size);
     // Se o Ranking UF falhou, usa os codigos guardados na ultima carga boa —
     // sem isso a parcial cairia junto e mostraria homonimos do Brasil inteiro.
     if(!teamCodes||!teamCodes.size){
@@ -554,6 +555,7 @@ async function goProcessFromSheets(opts={}){
     G.gtRank=newGtRank; G.rcaRank=newRcaRank;
     G.team=teamCodes&&teamCodes.size?[...teamCodes]:(G.team||null);
     G.updatedAt=new Date().toISOString();
+    G.teamAt=_teamFromUf?G.updatedAt:(G.teamAt||(stored&&stored.teamAt)||null);
     saveStore();
     renderDashboard();
     _setLoadWarn(fails,TOTAL);
@@ -903,6 +905,25 @@ function _valEscala(d,ondeReg){
   return pior;
 }
 
+// Aviso OU confirmacao sobre a lista do time (que sai do Ranking Maranhao, planilha 3).
+// So vira aviso amarelo se a planilha 3 nao veio nesta leva E a ultima carga dela
+// e antiga/desconhecida. Se foi carregada faz pouco tempo, mostra "ok" em verde.
+function _valAvisoTime(add,items,tc){
+  if(items.some(x=>x.id==='uf'&&x.raw)){
+    add('ok','Lista do time desta leva: '+tc.size+' RCAs, tirada do Ranking Maranhão que você trouxe junto.');
+    return;
+  }
+  const st=loadStore();
+  const tAt=(st&&st.teamAt)||(typeof G!=='undefined'&&G.teamAt)||null;
+  const dias=tAt?Math.floor((Date.now()-new Date(tAt).getTime())/86400000):null;
+  const dt=tAt?(fmtUpdatedAt(tAt).split(' ')[0]):null;
+  if(dias!=null&&dias<=31){
+    add('ok','Ranking Maranhão já está no painel (carga de '+dt+'). A lista do time ('+tc.size+' RCAs) está ok — se ninguém entrou nem saiu desde então, pode subir só a Parcial.');
+  }else{
+    add('warn','Você não trouxe o Ranking Maranhão (planilha 3) e a lista do time guardada '+(dt?('é de '+dt+', pode estar velha'):'não tem data conhecida')+'. Se alguém entrou ou saiu do time, traga a planilha 3 junto.');
+  }
+}
+
 function _valCheck(item,items){
   const raw=item.raw, out={lv:'ok',linhas:[]};
   const add=(lv,txt)=>{ out.linhas.push({lv,txt}); if(lv==='err')out.lv='err'; else if(lv==='warn'&&out.lv!=='err')out.lv='warn'; };
@@ -911,7 +932,7 @@ function _valCheck(item,items){
     if(item.id==='curr'){
       const tc=_valTeamCodes(items);
       if(!tc||!tc.size){ add('err','Não sei quais são os códigos do seu time. Traga junto a planilha 3 (Ranking Maranhão) ou carregue o painel uma vez pelo Drive antes.'); return out; }
-      if(!items.some(x=>x.id==='uf'&&x.raw)) add('warn','Você não trouxe o Ranking Maranhão (planilha 3) nesta leva — a lista do seu time veio da última carga. Se alguém entrou ou saiu do time, traga a planilha 3 junto para a parcial filtrar certo.');
+      _valAvisoTime(add,items,tc);
       const d=buildData(raw,false,tc);
       const nR=Object.keys(d.rcas||{}).length;
       if(!nR) add('err','Nenhum RCA do seu time foi encontrado. Este arquivo não é a parcial dos RCAs, ou veio de outro período/gestor.');
@@ -1187,6 +1208,7 @@ function saveStore(){
       gt:G.gt||null, prevGt:G.prevGt||null,
       winners:G.winners||null,
       gtRank:G.gtRank||null, rcaRank:G.rcaRank||null,
+      teamAt:G.teamAt||null,
       updatedAt:G.updatedAt||new Date().toISOString()
     };
     localStorage.setItem(STORE_KEY,JSON.stringify(payload));
@@ -3768,6 +3790,7 @@ window.addEventListener('DOMContentLoaded', async function(){
       G.curr=s.curr; G.prev=s.prev||null; G.uf=s.uf||null; G.prevUf=s.prevUf||null;
       G.gt=s.gt||null; G.prevGt=s.prevGt||null; G.winners=s.winners||null; G.gtRank=s.gtRank||null; G.rcaRank=s.rcaRank||null; G.updatedAt=s.updatedAt||null;
       G.team=s.team||null;
+      G.teamAt=s.teamAt||null;
       document.getElementById('upload-screen').style.display='none';
       document.getElementById('dashboard').style.display='block';
       renderDashboard();
