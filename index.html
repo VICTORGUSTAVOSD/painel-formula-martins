@@ -392,8 +392,8 @@ const STORE_VERSION = 4;
 // ── Configuração Google Sheets ────────────────────────────────────────────
 // Publique cada aba como CSV: Arquivo → Compartilhar → Publicar na web → CSV
 // Cole as URLs resultantes abaixo.
-const GS_CURR_URL    = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vScBsLX7FkMyAMQ3M79FcKJONYT95bEEcPqYgEnJsQ7bxCLVJwMS-HdQ2KeBwEcYg/pub?output=csv';    // parcial semanal dos RCAs
-const GS_GT_URL      = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRU0jx8H_cH5Hi80L174GUwqMlyfn9fIHnJQ5-sWesd9X9XOkx5w2X57Rg2s2DUSw/pub?output=csv';   // parcial semanal GT Victor
+const GS_CURR_URL    = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vScBsLX7FkMyAMQ3M79FcKJONYT95bEEcPqYgEnJsQ7bxCLVJwMS-HdQ2KeBwEcYg/pub?output=csv';    // parcial do mes dos RCAs (voce atualiza toda semana)
+const GS_GT_URL      = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRU0jx8H_cH5Hi80L174GUwqMlyfn9fIHnJQ5-sWesd9X9XOkx5w2X57Rg2s2DUSw/pub?output=csv';   // parcial do mes do GT Victor (voce atualiza toda semana)
 const GS_UF_URL      = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQw6qCAaOMNBOxc0ofi6zo3eBKUxsctMITPdtEI_1qlyJKZp8gxuLNCbEs60AwauQ/pub?output=csv';   // ranking do estado MA
 const GS_WINNERS_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vS7kh9rWJxHzA4gbCkAt71N03y5sSQQSqANF4djfnvG0Hhm9OGJ8H0IkgvjGXrzzw/pub?output=csv';  // GT ranking por industria (ganhadores)
 const GS_GT_RANK_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRcDNk-jPloMC-yLEHXbL44FN5hJDk3Hd1JQKcW_ru86iGhjY3p2n0By_fR9D0lkw/pub?output=csv';  // ranking geral nacional GT (183 GTs)
@@ -578,13 +578,13 @@ async function goProcessFromSheets(opts={}){
 // pega: Ranking GEGT_ exportado com o GE errado (o 77682 nao esta no arquivo) e
 // os dois exports chamados "Tabela Performance" trocados entre si.
 const VAL_SPECS=[
-  {id:'curr',    n:1, nome:'Parcial RCAs (semanal)',        drive:'1 - Parcial RCAs (semanal).xlsx',                       expo:'Tabela Performance — a GRANDE (~6 MB), nível RCA', driveId:'1-gyvQcqIcYeGKRCNXOwAYANrMcviIDsl'},
-  {id:'gt',      n:2, nome:'Parcial GT Victor (semanal)',   drive:'2 - Parcial GT Victor (semanal).xlsx',                  expo:'Tabela Performance — a PEQUENA (~400 KB), nível GT', driveId:'1eTiuD82IU7-tCzo_yI5OoUg_CQ6Jltt1'},
-  {id:'uf',      n:3, nome:'Ranking Maranhão (acumulado)',  drive:'3 - Ranking Maranhao (acumulado).xlsx',                 expo:'Ranking UF_ (pode vir com o Brasil inteiro)', driveId:'1qCq-Bmt3AkWZrpmmfma67hGcUZ9amICh'},
-  {id:'winners', n:4, nome:'Ranking GT por Indústria',      drive:'4 - Ranking GT por Industria (acumulado).xlsx',         expo:'Ranking Industria_ — a PEQUENA (~107 KB), nível GT', driveId:'1djEKOjMAuSU3IdlfCkHaYteL3HHqtrvd'},
-  {id:'gtRank',  n:5, nome:'Ranking Nacional GT',           drive:'5 - Ranking Nacional GT (todos os GEs).xlsx',           expo:'Ranking GEGT_ — exportar SEM filtro de GE', driveId:'1PG3r4gM3ZdKpTUmLgeAT9p-LuCk10gl3'},
-  {id:'rcaRank', n:6, nome:'Ranking Nacional RCA',          drive:'6 - Ranking Nacional RCA.xlsx',                         expo:'Ranking Detalhado_', driveId:'1PQAmVFId_B75Qd3J1yCzJ7QKp3OrgrKK'},
-  {id:'rcaInd',  n:7, nome:'Ranking RCA por Indústria',     drive:'7 - Ranking RCA por Industria (ainda nao usada).xlsx',  expo:'Ranking Industria_ — a GRANDE (~1,8 MB), nível RCA', off:true, driveId:'13BhfA6cEKnTiZgjEdjL2jyT9cRytHRSi'}
+  {id:'curr',    n:1, nome:'Parcial do Mês - RCAs',        drive:'Parcial Mês.xlsx',                       expo:'Tabela Performance — a GRANDE (~6 MB), nível RCA', driveId:'1-gyvQcqIcYeGKRCNXOwAYANrMcviIDsl'},
+  {id:'gt',      n:2, nome:'Parcial do Mês - GT Victor',   drive:'GT.xlsx',                  expo:'Tabela Performance — a PEQUENA (~400 KB), nível GT', driveId:'1eTiuD82IU7-tCzo_yI5OoUg_CQ6Jltt1'},
+  {id:'uf',      n:3, nome:'Ranking Maranhão (acumulado)',  drive:'Ranking UF_.xlsx',                 expo:'Ranking UF_ (pode vir com o Brasil inteiro)', driveId:'1qCq-Bmt3AkWZrpmmfma67hGcUZ9amICh'},
+  {id:'winners', n:4, nome:'Ranking GT por Indústria',      drive:'GT - R Industria).xlsx',         expo:'Ranking Industria_ — a PEQUENA (~107 KB), nível GT', driveId:'1djEKOjMAuSU3IdlfCkHaYteL3HHqtrvd'},
+  {id:'gtRank',  n:5, nome:'Ranking Nacional GT',           drive:'R NACIONAL GT.xlsx',           expo:'Ranking GEGT_ — exportar SEM filtro de GE', driveId:'1PG3r4gM3ZdKpTUmLgeAT9p-LuCk10gl3'},
+  {id:'rcaRank', n:6, nome:'Ranking Nacional RCA',          drive:'R NACIONAL RCA.xlsx',                         expo:'Ranking Detalhado_', driveId:'1PQAmVFId_B75Qd3J1yCzJ7QKp3OrgrKK'},
+  {id:'rcaInd',  n:7, nome:'Ranking RCA por Indústria',     drive:'RCA - R Industria_.xlsx',  expo:'Ranking Industria_ — a GRANDE (~1,8 MB), nível RCA', off:true, driveId:'13BhfA6cEKnTiZgjEdjL2jyT9cRytHRSi'}
 ];
 const VAL_BY_ID={}; VAL_SPECS.forEach(s=>{VAL_BY_ID[s.id]=s;});
 // Pares que so o conteudo distingue (a presenca do codigo 77682 e fato, o nome do arquivo nao e)
@@ -872,8 +872,8 @@ function _valIdentify(raw,nome){
       id=shape.id;
       aviso='O nome do arquivo parece "'+VAL_BY_ID[byName].nome+'", mas o conteudo é de "'+VAL_BY_ID[shape.id].nome+'". Segui o conteúdo. Confira se você não trocou os dois exports.';
     }else{
-      id=byName;
-      aviso='O nome diz "'+VAL_BY_ID[byName].nome+'" e a estrutura lembra "'+VAL_BY_ID[shape.id].nome+'". Confirme no seletor abaixo qual é a certa.';
+      id=shape.id;  // conteudo sempre manda: nao deixar isso ficar vermelho
+      aviso='O nome do arquivo diz "'+VAL_BY_ID[byName].nome+'", mas pelas colunas isto é "'+VAL_BY_ID[shape.id].nome+'". Segui o conteúdo. Se não for isso, escolha no seletor abaixo.';
     }
   }
   return {id,aviso,shape};
@@ -2473,7 +2473,7 @@ function renderGTVictor(){
     });
     h+=`</div><div id="gt-sup-detail"></div>`;
   } else {
-    h+=`<div class="alert al-y">Parcial semanal do GT ainda não carregada.</div>`;
+    h+=`<div class="alert al-y">Parcial do mês do GT ainda não carregada.</div>`;
   }
 
   // ── Colocação acumulada por fornecedor (abaixo dos cards semanais) ──
