@@ -873,6 +873,12 @@ function _valIdentify(raw,nome){
       // O conteudo manda: 77682 presente/ausente e fato, nome de arquivo nao e.
       id=shape.id;
       aviso='O nome do arquivo parece "'+VAL_BY_ID[byName].nome+'", mas o conteudo é de "'+VAL_BY_ID[shape.id].nome+'". Segui o conteúdo. Confira se você não trocou os dois exports.';
+    }else if(shape.id==='uf'){
+      // Export nacional as vezes vem com uma coluna "UF" solta e a estrutura
+      // parece a planilha 3. Se o NOME diz outra coisa, vale o nome -- senao a
+      // planilha 3 toma a vaga da nacional e some um cartao.
+      id=byName;
+      aviso='Este arquivo tem uma coluna "UF" mas o nome indica "'+VAL_BY_ID[byName].nome+'". Segui o nome. Se for mesmo o Ranking Maranhão, escolha no seletor.';
     }else{
       id=shape.id;  // conteudo sempre manda: nao deixar isso ficar vermelho
       aviso='O nome do arquivo diz "'+VAL_BY_ID[byName].nome+'", mas pelas colunas isto é "'+VAL_BY_ID[shape.id].nome+'". Segui o conteúdo. Se não for isso, escolha no seletor abaixo.';
@@ -1030,9 +1036,12 @@ async function valFiles(fileList){
     }catch(err){ it.erro=(err&&err.message)||String(err); }
     items.push(it);
   }
-  // Junta com o que ja estava na tela, substituindo pelo mesmo id
+  // Junta com o que ja estava na tela. So substitui quando e o MESMO arquivo
+  // (mesmo nome) reenviado. Se o id colide mas o nome e outro, MANTEM os dois:
+  // sao planilhas diferentes que a deteccao por conteudo nao separou -- o aviso
+  // de duplicidade + o seletor de cada cartao resolvem. Antes o 2o sumia calado.
   items.forEach(it=>{
-    const i=VAL_STATE.findIndex(o=>o.id&&it.id&&o.id===it.id);
+    const i=VAL_STATE.findIndex(o=>o.nome===it.nome);
     if(i>=0)VAL_STATE[i]=it; else VAL_STATE.push(it);
   });
   valRun();
