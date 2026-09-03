@@ -1018,6 +1018,8 @@ async function valFiles(fileList){
 }
 
 function valRun(){
+  // cartoes sempre na ordem das vagas (1..7); nao-identificados por ultimo
+  VAL_STATE.sort((a,b)=>((a.id&&VAL_BY_ID[a.id])?VAL_BY_ID[a.id].n:99)-((b.id&&VAL_BY_ID[b.id])?VAL_BY_ID[b.id].n:99));
   VAL_STATE.forEach(it=>{ it.res=it.erro?null:_valCheck(it,VAL_STATE); });
   valRender();
 }
