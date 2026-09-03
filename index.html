@@ -3570,7 +3570,7 @@ function extractTeamCodes(raw){
 }
 
 function buildUFData(raw){
-  let hRow=-1,cFunc=-1,cGestor=-1,cUF=-1,cPts=-1,cRank=-1;
+  let hRow=-1,cFunc=-1,cGestor=-1,cUF=-1,cPts=-1,cRank=-1,cCargo=-1;
   for(let i=0;i<Math.min(raw.length,8);i++){
     const r=raw[i].map(c=>String(c).toUpperCase().trim());
     if(r.some(c=>c.includes('FUNCIONARIO')||c.includes('FUNCION'))){
@@ -3579,6 +3579,7 @@ function buildUFData(raw){
         if(c.includes('FUNC'))cFunc=j;
         else if(c.includes('GESTOR'))cGestor=j;
         else if(c==='UF')cUF=j;
+        else if(c==='CARGO')cCargo=j;
         else if(c==='PONTOS')cPts=j;
         else if(c.includes('RANKING'))cRank=j;
       });
@@ -3596,7 +3597,13 @@ function buildUFData(raw){
     const pts=parseN(r[cPts]);
     const rank=parseN(r[cRank])||999;
     const gestor=String(r[cGestor]||'').trim();
-    const uf=String(r[cUF]||'MA').trim();
+    const cargo=cCargo>=0?String(r[cCargo]||'').trim().toUpperCase():'';
+    // O ranking do estado e dos RCAs. Consultor VD / GE / GV / Supervisor vem no
+    // mesmo arquivo, com UF em branco e pontuacao alta -- nao entram no ranking.
+    if(cCargo>=0 && cargo && cargo!=='REPRESENTANTE' && cargo!=='RCA') continue;
+    // UF em branco NAO vira 'MA' (era isso que jogava os Consultor VD pro topo do
+    // ranking do MA); so assume MY_UF_KEY se o arquivo nem tem coluna UF.
+    const uf=(cUF>=0)?String(r[cUF]||'').trim().toUpperCase():MY_UF_KEY;
     const isMine=gestor.toUpperCase().includes(MY_GESTOR_KEY);
 
     // Short name
